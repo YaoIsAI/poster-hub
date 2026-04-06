@@ -1,0 +1,13 @@
+{
+  "name": "poster-hub",
+  "version": "1.0.0",
+  "description": "AI驱动的智能海报生成平台",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "generate": "node generate-poster.js"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}

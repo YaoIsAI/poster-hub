@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PosterHub — Gallery</title>
+  <link rel="stylesheet" href="/web/css/style.css">
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <a href="/web/index.html" class="nav-brand">PosterHub</a>
+  <div class="nav-right">
+    <div class="lang-switch-nav" id="langSwitch">
+      <button class="lang-nav-btn active" data-lang="zh" onclick="setLang('zh')">中文</button>
+      <span class="lang-div">|</span>
+      <button class="lang-nav-btn" data-lang="en" onclick="setLang('en')">EN</button>
+    </div>
+    <a href="/web/index.html" class="nav-link" data-i18n="nav.generator">生成器</a>
+    <a href="/web/gallery.html" class="nav-link" data-i18n="nav.gallery">画廊</a>
+  </div>
+</nav>
+
+<!-- Main -->
+<main style="max-width:960px; margin:0 auto; padding:48px 24px; width:100%; box-sizing:border-box;">
+
+  <div class="gallery-header">
+    <h1 class="headline" data-i18n="gallery.title">内容简介卡画廊</h1>
+    <p class="subline" data-i18n="gallery.subtitle">所有已生成的项目内容简介卡</p>
+  </div>
+
+  <!-- Grid -->
+  <div class="gallery-grid" id="galleryGrid">
+    <div class="gallery-empty" id="emptyState" data-i18n="gallery.empty">暂无海报，去生成一张吧</div>
+  </div>
+</main>
+
+<!-- Modal -->
+<div class="modal" id="modal">
+  <div class="modal-inner">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const I18N = {
+  zh: {
+    'nav.generator': '生成器',
+    'nav.gallery': '画廊',
+    'gallery.title': '内容简介卡画廊',
+    'gallery.subtitle': '所有已生成的项目内容简介卡',
+    'gallery.empty': '暂无海报，去生成一张吧',
+    'gallery.card.date': ''
+  },
+  en: {
+    'nav.generator': 'Generator',
+    'nav.gallery': 'Gallery',
+    'gallery.title': 'Project Poster Gallery',
+    'gallery.subtitle': 'All generated project posters',
+    'gallery.empty': 'No posters yet. Go generate one!',
+    'gallery.card.date': ''
+  }
+};
+
+let currentLang = 'zh';
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('posterhub-lang', lang);
+  document.querySelectorAll('.lang-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (I18N[lang][key]) el.textContent = I18N[lang][key];
+  });
+  // 重新渲染画廊（动态内容）
+  loadGallery();
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (currentLang === 'en') {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  return d.toLocaleDateString('zh-CN');
+}
+
+async function loadGallery() {
+  try {
+    const res = await fetch('/api/list');
+    const data = await res.json();
+    const grid = document.getElementById('galleryGrid');
+
+    if (!data.posters || data.posters.length === 0) {
+      grid.innerHTML = '<div class="gallery-empty">' + I18N[currentLang]['gallery.empty'] + '</div>';
+      return;
+    }
+
+    grid.innerHTML = data.posters.map(p => {
+      const date = formatDate(p.created);
+      const theme = p.theme || '';
+      const meta = [date, theme].filter(Boolean).join(' · ');
+      return '<div class="gallery-card" onclick="showModal(\'' + p.id + '\')">' +
+        '<img src="/api/poster/' + p.id + '.png?thumb=1" loading="lazy" alt="' + (p.title || '') + '">' +
+        '<div class="gallery-card-info">' +
+          '<div class="gallery-card-title">' + (p.title || '') + '</div>' +
+          (meta ? '<div class="gallery-card-meta">' + meta + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function showModal(id) {
+  document.getElementById('modalBody').innerHTML = '<img src="/api/poster/' + id + '.png">';
+  document.getElementById('modal').classList.add('visible');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('visible');
+}
+
+// 初始化：读取语言偏好
+(function init() {
+  const saved = localStorage.getItem('posterhub-lang');
+  if (saved === 'zh' || saved === 'en') {
+    currentLang = saved;
+    document.querySelectorAll('.lang-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === saved));
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
+      if (I18N[saved][key]) el.textContent = I18N[saved][key];
+    });
+  }
+  loadGallery();
+})();
+
+    
+    // Handle ?id= URL parameter to load specific poster
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const posterId = params.get('id');
+      const lang = params.get('lang');
+      if (lang === 'en' || lang === 'zh') {
+        setLang(lang);
+      }
+      if (posterId) {
+        // Load specific poster from gallery
+        loadFromGallery(posterId);
+      }
+    })();
+    
+    function loadFromGallery(id) {
+      // Load a specific poster by ID and show in lightbox
+      fetch('/api/poster/' + id + '/meta.json')
+        .then(r => r.json())
+        .then(meta => {
+          const lightbox = document.createElement('div');
+          lightbox.id = 'poster-lightbox';
+          lightbox.innerHTML = '<div class="lightbox-content"><button class="lightbox-close" onclick="this.closest(\'#poster-lightbox\').remove()">×</button><img src="/api/poster/" + id + ".png" alt="poster"><div class="lightbox-info"><h3>' + (meta.title || id) + '</h3><p>' + (meta.github || '') + '</p></div></div>';
+          lightbox.onclick = function(e) { if(e.target===lightbox) lightbox.remove(); };
+          document.body.appendChild(lightbox);
+        })
+        .catch(e => console.error('Failed to load poster:', e));
+    }
+    </script>
+
+</body>
+</html>
