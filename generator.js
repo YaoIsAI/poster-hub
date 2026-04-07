@@ -532,7 +532,8 @@ function generateFromNaturalLanguage(nl, overrides = {}) {
   } else {
     // 如果没有 sections，自动从 items 构建一个默认 section
     if (!config.sections || config.sections.length === 0) {
-      const overviewLabel = isZh ? '内容一览' : '📋 Overview';
+      const _isZh = config.lang === 'zh' || !/^[a-zA-Z]/.test((config.hero?.subtitle || '').trim());
+      const overviewLabel = _isZh ? '内容一览' : '📋 Overview';
       config.sections = [{ label: overviewLabel, items: items || [] }];
     }
   }

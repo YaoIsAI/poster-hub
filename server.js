@@ -1,3 +1,4 @@
+require('dotenv').config();
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -10,15 +11,17 @@ const { hiresPoster } = require('./screenshot');
 const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(__dirname, '..');
 function autoDetectLocal(nlText) {
   try {
-    // 1. 先在 PROJECTS_ROOT 中匹配
+    // 1. 先在 PROJECTS_ROOT 中匹配（要求更严格：完整包含或首尾匹配）
     if (fs.existsSync(PROJECTS_ROOT)) {
       const dirs = fs.readdirSync(PROJECTS_ROOT).filter(d =>
         fs.statSync(path.join(PROJECTS_ROOT, d)).isDirectory()
       );
-      const matched = dirs.find(d =>
-        nlText.includes(d) || d.includes(nlText) ||
-        nlText.toLowerCase().includes(d.toLowerCase())
-      );
+      // 严格匹配：nlText 首尾包含目录名，或者目录名首尾包含 nlText（但排除太长/太短的误匹配）
+      const matched = dirs.find(d => {
+        const nl = nlText.toLowerCase(), dn = d.toLowerCase();
+        return (nl.startsWith(dn) || nl.endsWith(dn) || dn.startsWith(nl))
+               && nl.length >= 2 && dn.length >= 2;
+      });
       if (matched) {
         const root = path.join(PROJECTS_ROOT, matched);
         const info = readProjectInfo(root, matched);
@@ -318,11 +321,14 @@ const server = http.createServer(async (req, res) => {
             finalNl = (llmResult.title || localData.name) + ' - ' + (llmResult.description || '') + (techs ? '，技术栈：' + techs : '');
             console.log('🎨 [LLM] 生成海报: ' + finalNl);
           } else {
-            // LLM 失败，降级到 README 方式
+            // LLM 未配置或失败，降级到 README 方式
             const readmeShort = (localData.readme || '').replace(/[#*`]/g, ' ').replace(/\s+/g, ' ').slice(0, 200).trim();
             const techs = localData.techs.length > 0 ? '，技术栈：' + localData.techs.join(' / ') : '';
             finalNl = localData.name + ' - ' + (readmeShort || '本地项目') + techs;
             console.log('🎨 [fallback] 生成海报: ' + finalNl);
+            if (!process.env.LLM_API_KEY && !process.env.OPENAI_API_KEY) {
+              warnings.push('⚠️ 未配置 LLM_API_KEY，建议配置后获得更精准的海报内容');
+            }
           }
         } else {
           finalNl = nl;
