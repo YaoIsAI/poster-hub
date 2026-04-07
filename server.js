@@ -185,7 +185,8 @@ function fetchGitHub(nlText) {
     return {
       name: repo, owner, stars, lang, desc, topics, techs: [],
       readme, readmeEn, skillMd,
-      nl: finalNl, nlEn: finalNlEn
+      nl: finalNl, nlEn: finalNlEn,
+      designMd: null  // 待 fetchDesignMd 填充
     };
   } catch(e) {
     const errMsg = e.message || '';
@@ -199,6 +200,315 @@ function fetchGitHub(nlText) {
     }
     console.log('❌ GitHub API 失败: ' + e.message);
     return { error: notice || 'GitHub API 请求失败', notice };
+  }
+}
+
+// ============================================================
+// DESIGN.md 支持：从 GitHub 读取并解析设计规范
+// ============================================================
+
+// 4. 获取 DESIGN.md（如果存在）
+function fetchDesignMd(owner, repo) {
+  const ghToken = process.env.GITHUB_TOKEN || '';
+  const authHdr = ghToken ? `-H "Authorization: token ${ghToken}"` : '';
+  for (const branch of ['main', 'master']) {
+    try {
+      const rd = execSync(`curl -sL "https://api.github.com/repos/${owner}/${repo}/contents/DESIGN.md?ref=${branch}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" ${authHdr} --max-time 10`, { encoding: 'utf8' });
+      const parsed = JSON.parse(rd);
+      if (parsed.content) {
+        const content = Buffer.from(parsed.content, 'base64').toString('utf8');
+        console.log('✅ 读取到 DESIGN.md（' + content.length + ' 字符）');
+        return content;
+      }
+    } catch(e) {}
+  }
+  console.log('⚠️ 未找到 DESIGN.md，将使用默认主题');
+  return null;
+}
+
+// 从 awesome-design-md 查找匹配的设计模板
+// 通过项目关键词（名称/描述/技术栈）匹配 VoltAgent 的 58 套设计模板
+function fetchBestDesignMdFromAwesome(owner, repo, desc, lang, topics) {
+  const ghToken = process.env.GITHUB_TOKEN || '';
+  const authHdr = ghToken ? `-H "Authorization: token ${ghToken}"` : '';
+
+  // 核心模板列表（VoltAgent awesome-design-md 的 design-md 目录）
+  const TEMPLATES = [
+    'airbnb','airtable','algolia','apple','atlassian','auth0','basecamp',
+    'bear','behance','bentoml','bmw','brave','cal','chatgpt','claude',
+    'clay','clickhouse','cloudflare','codium','cursor','datadog','discord',
+    'docker','dribbble','dropbox','ethers','excalidraw','figma','framer',
+    'github','gitlab','google','grida','hashnode','huggingface','instagram',
+    'linear','loom','mailchimp','mastodon','midjourney','mint','neon',
+    'notion','openai','parabola','planetscale','plex','radix','raycast',
+    'readme','replicate','resend','runware','shopify','slack','spotify',
+    'steam','stripe','supabase','tailwind','tldraw','twitch','twitter','ubisoft',
+    'undesc','v0','vercel','warp','x','youtube','linear'
+  ];
+
+  // 从描述和关键词中提取匹配词
+  const searchText = (desc + ' ' + repo + ' ' + (topics || []).join(' ')).toLowerCase();
+  const langMap = {
+    'Python': ['neon', 'vercel', 'openai'],
+    'JavaScript': ['stripe', 'vercel', 'github', 'twitter'],
+    'TypeScript': ['stripe', 'linear', 'vercel', 'github', 'cursor'],
+    'Go': ['docker', 'cloudflare', 'neon'],
+    'Rust': ['vercel', 'neon'],
+    'Ruby': ['stripe', 'github', 'airbnb'],
+    'Swift': ['apple', 'cal', 'bear'],
+    'Kotlin': ['spotify', 'twitter'],
+  };
+
+  const targetSlugs = langMap[lang] || [];
+  const keywordMatches = [
+    // 语言/框架相关
+    { kw: 'typescript', slug: 'stripe' },
+    { kw: 'typescript', slug: 'linear' },
+    { kw: 'python', slug: 'neon' },
+    { kw: 'ai', slug: 'openai' },
+    { kw: 'chatbot', slug: 'openai' },
+    { kw: 'stripe', slug: 'stripe' },
+    { kw: 'payment', slug: 'stripe' },
+    { kw: 'docker', slug: 'docker' },
+    { kw: 'container', slug: 'docker' },
+    { kw: 'figma', slug: 'figma' },
+    { kw: 'design', slug: 'figma' },
+    { kw: 'github', slug: 'github' },
+    { kw: 'git', slug: 'github' },
+    { kw: 'linear', slug: 'linear' },
+    { kw: 'project management', slug: 'linear' },
+    { kw: 'notion', slug: 'notion' },
+    { kw: 'note', slug: 'notion' },
+    { kw: 'vercel', slug: 'vercel' },
+    { kw: 'deploy', slug: 'vercel' },
+    { kw: 'frontend', slug: 'vercel' },
+    { kw: 'openai', slug: 'openai' },
+    { kw: 'gpt', slug: 'openai' },
+    { kw: 'claude', slug: 'claude' },
+    { kw: 'cursor', slug: 'cursor' },
+    { kw: 'v0', slug: 'v0' },
+    { kw: 'radi', slug: 'radix' },
+    { kw: 'twitter', slug: 'twitter' },
+    { kw: 'social media', slug: 'twitter' },
+    { kw: 'youtube', slug: 'youtube' },
+    { kw: 'video', slug: 'youtube' },
+    { kw: 'spotify', slug: 'spotify' },
+    { kw: 'music', slug: 'spotify' },
+    { kw: 'shopify', slug: 'shopify' },
+    { kw: 'ecommerce', slug: 'shopify' },
+    { kw: 'slack', slug: 'slack' },
+    { kw: 'chat', slug: 'slack' },
+    { kw: 'discord', slug: 'discord' },
+    { kw: 'community', slug: 'discord' },
+    { kw: 'docker', slug: 'docker' },
+    { kw: 'cloudflare', slug: 'cloudflare' },
+    { kw: 'edge', slug: 'cloudflare' },
+    { kw: 'tailwind', slug: 'tailwind' },
+    { kw: 'css', slug: 'tailwind' },
+    { kw: 'supabase', slug: 'supabase' },
+    { kw: 'database', slug: 'supabase' },
+    { kw: 'postgres', slug: 'supabase' },
+    { kw: 'framer', slug: 'framer' },
+    { kw: 'motion', slug: 'framer' },
+    { kw: 'apple', slug: 'apple' },
+    { kw: 'ios', slug: 'apple' },
+    { kw: 'macos', slug: 'apple' },
+    { kw: 'bear', slug: 'bear' },
+    { kw: 'note', slug: 'bear' },
+    { kw: 'cal', slug: 'cal' },
+    { kw: 'calendar', slug: 'cal' },
+    { kw: 'loom', slug: 'loom' },
+    { kw: 'video recording', slug: 'loom' },
+    { kw: 'chatgpt', slug: 'chatgpt' },
+    { kw: 'midjourney', slug: 'midjourney' },
+    { kw: 'image gen', slug: 'midjourney' },
+    { kw: 'huggingface', slug: 'huggingface' },
+    { kw: 'ml', slug: 'huggingface' },
+    { kw: 'neural', slug: 'huggingface' },
+  ];
+
+  // 提取匹配度最高的 slug
+  let bestSlug = null;
+  let bestScore = 0;
+  for (const { kw, slug } of keywordMatches) {
+    if (searchText.includes(kw)) {
+      // 精确匹配给更高分
+      const score = searchText.includes(repo.toLowerCase() + ' ' + kw) ? 3 : 2;
+      if (score > bestScore) {
+        bestScore = score;
+        bestSlug = slug;
+      }
+    }
+  }
+
+  if (!bestSlug) return null;
+
+  // 尝试获取该模板的 DESIGN.md
+  for (const branch of ['main', 'master']) {
+    try {
+      const path = `design-md/${bestSlug}/DESIGN.md`;
+      const rd = execSync(`curl -sL "https://api.github.com/repos/VoltAgent/awesome-design-md/contents/${path}?ref=${branch}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" ${authHdr} --max-time 10`, { encoding: 'utf8' });
+      const parsed = JSON.parse(rd);
+      if (parsed.content) {
+        const content = Buffer.from(parsed.content, 'base64').toString('utf8');
+        console.log('✅ 从 awesome-design-md 匹配到 ' + bestSlug + ' 风格（搜索文本: ' + lang + '）');
+        return content;
+      }
+    } catch(e) {}
+  }
+  return null;
+}
+
+// 解析 DESIGN.md Markdown，提取完整设计 token
+// 支持表格格式和叙述格式（如 VoltAgent awesome-design-md 的写作风格）
+function parseDesignMd(mdContent) {
+  if (!mdContent) return null;
+  try {
+    const spec = {
+      colors: [],
+      primaryColor: null,
+      accentColor: null,
+      bgColor: null,
+      bgColorAlt: null,
+      textColor: null,
+      textColorAlt: null,
+      dividerColor: null,
+      semanticColors: {},
+      fontFamily: null,
+      fontDisplay: null,
+      fontBody: null,
+      mood: '',
+      moodShort: '',
+      borderRadius: null,
+      isDark: false,
+    };
+
+    // 1. 提取所有 hex 色值
+    spec.colors = [...new Set(mdContent.match(/#[0-9a-fA-F]{3,8}/g) || [])];
+
+    // 2. 优先尝试解析 Markdown 表格（标准 Stitch 格式）
+    const tableSection = mdContent.match(/##\s*\d+\.\s*Color[^#]*?(?=\n##|\n#|$)/is);
+    if (tableSection) {
+      const rows = tableSection[0].match(/\|[^|]+\|[^|]+\|[^|]+\|/g) || [];
+      for (const row of rows) {
+        const cells = row.split('|').map(c => c.trim()).filter(Boolean);
+        if (cells.length >= 3) {
+          const [name, hexRaw, usage] = cells;
+          const hexMatch = (hexRaw || '').match(/#([0-9a-fA-F]{3,8})/);
+          if (hexMatch) {
+            let hex = '#' + hexMatch[1];
+            if (hex.length === 4) hex = hex[0] + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+            spec.semanticColors[name.toLowerCase()] = { hex, usage: usage || '' };
+          }
+        }
+      }
+    }
+
+    // 3. 叙述式色值提取（VoltAgent awesome-design-md 的写作风格）
+    const lowerMd = mdContent.toLowerCase();
+    const findInText = (keywords, contextChars = 120) => {
+      for (const kw of keywords) {
+        const idx = lowerMd.indexOf(kw.toLowerCase());
+        if (idx >= 0) {
+          const snippet = mdContent.slice(Math.max(0, idx - 10), idx + contextChars);
+          const match = snippet.match(/`?(#[0-9a-fA-F]{3,8})`?/);
+          if (match) return match[1].toUpperCase();
+        }
+      }
+      return null;
+    };
+
+    // 语义角色映射（叙述式查找）
+    const roleExtractors = [
+      // accent / interactive
+      { key: 'accentColor', names: ['apple blue', 'accent', 'cta', '#0071e3', 'interactive', 'blue', 'highlight'] },
+      // primary / brand
+      { key: 'primaryColor', names: ['pure black', 'primary', 'brand', '#000000', '#000)'] },
+      // light background
+      { key: 'bgColor', names: ['light gray', 'light grey', '#f5f5f7', 'fafafc', 'background', 'near white'] },
+      // dark background
+      { key: 'bgColorAlt', names: ['pure black', '#000000', 'dark background', 'black', 'dark section'] },
+      // text on light
+      { key: 'textColor', names: ['near black', '#1d1d1f', 'primary text', 'dark text', 'black text'] },
+      // text on dark
+      { key: 'textColorAlt', names: ['white', '#ffffff', 'ffffff', 'on dark', 'text on dark'] },
+    ];
+
+    for (const { key, names } of roleExtractors) {
+      if (!spec[key]) {
+        const found = findInText(names);
+        if (found) spec[key] = found;
+      }
+    }
+
+    // 4. 从语义色表覆盖叙述式查找结果（表格优先）
+    const sc = spec.semanticColors;
+    const priorityKeys = {
+      accentColor: ['accent', 'interactive', 'cta', 'apple blue', 'link blue', 'bright blue'],
+      primaryColor: ['pure black', 'primary', 'near black', 'white', 'main'],
+      bgColor: ['light gray', 'f5f5f7', 'background', 'surface', 'white'],
+      bgColorAlt: ['pure black', '000000', 'black'],
+      textColor: ['near black', '1d1d1f', 'primary', 'text'],
+      textColorAlt: ['white', 'ffffff'],
+    };
+
+    for (const [key, names] of Object.entries(priorityKeys)) {
+      if (!spec[key]) {
+        for (const n of names) {
+          const k = n.toLowerCase();
+          if (sc[k] && sc[k].hex) { spec[key] = sc[k].hex; break; }
+          for (const [sk, sv] of Object.entries(sc)) {
+            if (sk.includes(k) && sv.hex) { spec[key] = sv.hex; break; }
+          }
+          if (spec[key]) break;
+        }
+      }
+    }
+
+    // 5. 判断深色主题（主色为纯黑，或背景为深色）
+    if (spec.primaryColor && (spec.primaryColor === '#000000' || spec.primaryColor === '#000')) {
+      spec.isDark = true;
+    }
+    // 如果背景色偏暗，也判为深色主题
+    if (!spec.isDark && spec.bgColor) {
+      const bgHex = spec.bgColor.replace('#', '');
+      const r = parseInt(bgHex.slice(0, 2), 16);
+      const g = parseInt(bgHex.slice(2, 4), 16);
+      const b = parseInt(bgHex.slice(4, 6), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      if (luminance < 0.4) spec.isDark = true;
+    }
+
+    // 6. 提取字体
+    const fontMatch = mdContent.match(/(?:font[- ]*family|字体|Font Family)[：:\s]*([^\n,\|`]+)/i);
+    if (fontMatch) {
+      const fonts = fontMatch[1].split(',').map(f => f.trim().replace(/[`*]/g, ''));
+      spec.fontFamily = fonts[0];
+    }
+
+    const displayMatch = mdContent.match(/display.*?font[：:\s]*([^\n,\|`]+)/i);
+    if (displayMatch) spec.fontDisplay = displayMatch[1].split(',')[0].trim().replace(/[`*]/g, '');
+
+    const bodyMatch = mdContent.match(/body.*?font[：:\s]*([^\n,\|`]+)/i);
+    if (bodyMatch) spec.fontBody = bodyMatch[1].split(',')[0].trim().replace(/[`*]/g, '');
+
+    // 7. 提取氛围描述
+    const moodMatch = mdContent.match(/##\s*\d+\.\s*Visual Theme[^#]*?(?=\n##|\n#|$)/is);
+    if (moodMatch) {
+      const raw = moodMatch[0].replace(/[#*`\n]/g, ' ').replace(/\s+/g, ' ').trim();
+      spec.mood = raw.slice(0, 300);
+      spec.moodShort = raw.slice(0, 80);
+    }
+
+    // 8. 圆角
+    const radiusMatch = mdContent.match(/(?:radius|pill)[^0-9]*(\d+)/i);
+    if (radiusMatch) spec.borderRadius = parseInt(radiusMatch[1]);
+
+    console.log('📐 parseDesignMd: primary=' + spec.primaryColor + ', accent=' + spec.accentColor + ', bg=' + spec.bgColor + ', bgAlt=' + spec.bgColorAlt + ', isDark=' + spec.isDark + ', font=' + spec.fontFamily);
+    return spec;
+  } catch(e) {
+    console.log('⚠️ parseDesignMd 解析失败: ' + e.message);
+    return null;
   }
 }
 
@@ -259,9 +569,19 @@ const server = http.createServer(async (req, res) => {
         // 1. GitHub URL → API 获取完整项目信息（OpenClaw 学习）
         if (nl.includes('github.com')) {
           ghData = fetchGitHub(nl);
-          if (ghData) {
+          if (ghData && !ghData.error) {
             finalNl = lang === 'en' ? ghData.nlEn : ghData.nl;
             console.log('🧠 OpenClaw 正在学习: ' + ghData.owner + '/' + ghData.name);
+            // 读取 DESIGN.md（先尝试项目根目录，再尝试 awesome-design-md 同名模板）
+            let designMd = fetchDesignMd(ghData.owner, ghData.name);
+            if (!designMd) {
+              // 从 awesome-design-md 智能匹配最佳模板
+              designMd = fetchBestDesignMdFromAwesome(ghData.owner, ghData.name, ghData.desc, ghData.lang, ghData.topics);
+            }
+            if (designMd) {
+              ghData.designMd = designMd;
+              ghData.designSpec = parseDesignMd(designMd);
+            }
           }
         }
 
@@ -336,10 +656,90 @@ const server = http.createServer(async (req, res) => {
           console.log('🎨 [' + lang + '] 生成海报: ' + finalNl);
         }
 
-        // 用 AI 生成海报
+        // 如果有 designSpec，传递给生成器
+        const genOverrides = { lang };
+        if (ghData && ghData.designSpec) {
+          genOverrides.designSpec = ghData.designSpec;
+        }
+
+        
+// ═══════════════════════════════════════════
+//  海报内容验证器
+// ═══════════════════════════════════════════
+function validatePosterHTML(html, sourceData) {
+  const issues = [];
+  
+  // Helper: extract text content from HTML element
+  function extract(selector, regex) {
+    const m = new RegExp(regex || selector.replace(/[<>]/g, '').replace(/class=.([^"]+)./, '(?:[^>]*>)([^<]+)'), 'i').exec(html);
+    return m ? m[1].trim() : null;
+  }
+  
+  // Extract hero title
+  const heroTitle = /class="hero-title[^>]*>([^<]+)</.exec(html);
+  const heroSubtitle = /class="hero-subtitle[^>]*>([^<]+)</.exec(html);
+  const heroBadge = /class="hero-badge[^>]*>([\s\S]*?)<\/div>/.exec(html);
+  const statNums = [...html.matchAll(/class="stat-num[^>]*>([^<]+)</g)].map(m => m[1]);
+  const cardNames = [...html.matchAll(/class="card-name[^>]*>([^<]+)</g)].map(m => m[1]);
+
+  // Validate against source data
+  if (sourceData) {
+    // GitHub data validation
+    if (sourceData.owner && sourceData.name) {
+      const expectedTitle = sourceData.owner + '/' + sourceData.name;
+      if (heroTitle && heroTitle[1] !== expectedTitle) {
+        issues.push({ type: 'title', expected: expectedTitle, actual: heroTitle[1] });
+      }
+    }
+    
+    if (sourceData.stars !== undefined) {
+      const stars = sourceData.stars;
+      // Check if stars stat exists and is reasonably close (handles "244.4k" format)
+      const hasStars = statNums.some(n => {
+        // Handle formats like "244.4k", "244k", "244,446"
+        const normalized = n.replace(/,/g, '').toLowerCase();
+        const num = parseFloat(normalized);
+        const units = { 'k': 1e3, 'm': 1e6, 'w': 1e4 };
+        const unit = normalized.match(/[kmw]$/);
+        const multiplier = unit ? units[unit[0]] : 1;
+        const parsed = unit ? num * multiplier : num;
+        // For formatted numbers, just check if stars > 0 and the stat is a number
+        return parsed > 0 && !isNaN(parsed);
+      });
+      if (!hasStars) {
+        issues.push({ type: 'stars', expected: stars, found: statNums });
+      }
+    }
+    
+    if (sourceData.topics && sourceData.topics.length > 0) {
+      // Check card topics
+      const topicCount = cardNames.filter(n => sourceData.topics.includes(n)).length;
+      if (topicCount < sourceData.topics.length * 0.5) {
+        issues.push({ type: 'topics', expected: sourceData.topics.length, found: cardNames.length });
+      }
+    }
+  }
+  
+  // Structural checks
+  if (!heroTitle) issues.push({ type: 'missing', field: 'hero-title' });
+  if (!heroSubtitle) issues.push({ type: 'missing', field: 'hero-subtitle' });
+  if (!heroBadge) issues.push({ type: 'missing', field: 'hero-badge' });
+  if (statNums.length === 0) issues.push({ type: 'missing', field: 'stats' });
+  
+  return { valid: issues.length === 0, issues };
+}
+
+// 用 AI 生成海报
         const { html, theme } = posterConfig
           ? generateFromConfig(posterConfig)
-          : generateFromNaturalLanguage(finalNl, { lang });
+          : generateFromNaturalLanguage(finalNl, genOverrides);
+
+        // 验证海报内容
+        const sourceForValidation = ghData || localData || {};
+        const validation = validatePosterHTML(html, sourceForValidation);
+        if (!validation.valid) {
+          console.warn('⚠️ 海报内容验证警告:', JSON.stringify(validation.issues));
+        }
 
         const id = Date.now() + '-' + Math.random().toString(36).slice(2, 6);
         const outDir = path.join(__dirname, 'posters', id);

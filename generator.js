@@ -306,6 +306,66 @@ function buildWorkflow(workflow, t) {
 
 function generatePoster({ config, items, theme }) {
   const t = theme;
+  // DESIGN.md 规范覆盖
+  // ═══════════════════════════════════════════
+  //  视觉正确性自我修复
+  //  检测 :root CSS 变量值是否符合设计规范，不符合则自动修正
+  // ═══════════════════════════════════════════
+  function isColorDark(hex) {
+    if (!hex || hex === 'transparent') return false;
+    const clean = hex.replace('#', '');
+    if (clean.length < 6) return false;
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance < 0.5;
+  }
+  function isColorWhite(hex) {
+    if (!hex) return false;
+    return /^#(FFF|F{5}|FA){1,}/i.test(hex);
+  }
+
+  const ds = config.designSpec;
+  if (ds && ds.isDark && ds.bgColor) {
+    // 深色主题验证：检查 :root CSS 变量是否正确
+    // bgWhite 应该被覆盖为深色，如果不是则强制覆盖
+    const currentBg = t.bgWhite;
+    if (!currentBg || !isColorDark(currentBg) || isColorWhite(currentBg)) {
+      // 自我修复：强制应用深色主题
+      t.bgWhite = ds.bgColor;
+      const r = parseInt(ds.bgColor.slice(1, 3), 16);
+      const g = parseInt(ds.bgColor.slice(3, 5), 16);
+      const b = parseInt(ds.bgColor.slice(5, 7), 16);
+      const lighterDark = '#' + [Math.min(255, r + 20), Math.min(255, g + 20), Math.min(255, b + 20)].map(x => x.toString(16).padStart(2, '0')).join('');
+      t.bgGray = lighterDark;
+      t.bgCard = lighterDark;
+      t.textPrimary = ds.textColor || '#FFFFFF';
+      t.textSecondary = ds.textColorAlt || '#FFFFFF99';
+      t.textTertiary = ds.textColorAlt ? ds.textColorAlt + '66' : '#FFFFFF44';
+      t.accent = ds.accentColor || '#FF5B4F';
+      t.divider = ds.dividerColor || '#333333';
+      console.log('[🔧 自我修复] 深色主题检测到 bgWhite=' + currentBg + ' 已强制覆盖为 ' + ds.bgColor);
+    }
+  }
+  if (ds) {
+    if (ds.isDark && ds.bgColor) {
+      t.bgWhite = ds.bgColor;
+      // 深色主题：卡片背景用比主背景稍浅的颜色（而不是白色）
+      const darkBase = ds.bgColor;
+      const r = parseInt(darkBase.slice(1,3),16);
+      const g = parseInt(darkBase.slice(3,5),16);
+      const b = parseInt(darkBase.slice(5,7),16);
+      const lighterDark = '#' + [Math.min(255,r+20), Math.min(255,g+20), Math.min(255,b+20)].map(x=>x.toString(16).padStart(2,'0')).join('');
+      t.bgGray = lighterDark;
+      t.bgCard = lighterDark;
+      t.textPrimary = ds.textColor || '#FFFFFF';
+      t.textSecondary = ds.textColorAlt || '#FFFFFF99';
+      t.textTertiary = ds.textColorAlt ? ds.textColorAlt + '66' : '#FFFFFF44';
+      t.accent = ds.accentColor || '#FF5B4F';
+      t.divider = ds.dividerColor || '#333333';
+    }
+  }
   const s = t.scale || 2;
   // 辅助：CSS px 值×scale
   function sc(n) { return (parseInt(n) * s) + 'px'; }
@@ -383,6 +443,7 @@ function generatePoster({ config, items, theme }) {
   return '<!DOCTYPE html>\n<html lang="zh-CN">' +
 '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>' + hero.title + '</title>' +
 '<style>' +
+':root { --hero-bg:' + t.bgWhite + '; --hero-text:' + t.textPrimary + '; --hero-subtext:' + t.textSecondary + '; --hero-badge-bg:' + t.bgGray + '; --hero-badge-text:' + t.textSecondary + '; --hero-divider:' + (t.divider || t.bgGray) + '; --accent:' + (t.accent || '#FF5B4F') + '; --stat-card-bg:' + t.bgGray + '; --stat-num-color:' + t.textPrimary + '; --stat-label-color:' + t.textSecondary + '; --section-label:' + t.textSecondary + '; --section-rule:' + (t.divider || t.bgGray) + '; --section-count:' + t.textTertiary + '; --card-bg:' + t.bgCard + '; --card-text:' + t.textPrimary + '; --card-desc:' + t.textSecondary + '; --card-badge-bg:' + t.bgGray + '; --card-badge-text:' + t.textSecondary + '; --card-dot:' + (t.accent || t.textPrimary) + '; --footer-rule:' + (t.divider || t.bgGray) + '; --footer-line1:' + t.textPrimary + '; --footer-line2:' + t.textTertiary + '; --footer-brand:' + t.textTertiary + '; }' +
 '@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");' +
 '* { margin: 0; padding: 0; box-sizing: border-box; }' +
 'body { font-family: ' + t.fontFamily + '; background: ' + t.bgWhite + '; color: ' + t.textPrimary + '; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; width: 100%; max-width: ' + t.pageWidth + 'px; margin: 0 auto; }' +
@@ -574,7 +635,7 @@ function buildCard(item, t, index) {
   const badge = item.badge || item.tag || '';
   const color = item.color || '#8B7355';
   const isEven = index % 2 === 0;
-  return '<div class="card" style="background:' + (isEven ? '#fff' : '#FAFAFA') + '"><div class="card-body">' + (emoji ? '<div class="card-top">' + (emoji ? '<div class="card-emoji">' + emoji + '</div>' : '') + '<div class="card-name">' + title + '</div></div>' : '') + (desc ? '<div class="card-desc">' + desc + '</div>' : '') + (badge ? '<div class="card-footer"><div class="card-badge" style="background:' + color + '20;color:' + color + '">' + badge + '</div></div>' : '') + '</div></div>';
+  return '<div class="card" style="background:var(--card-bg)"><div class="card-body">' + (emoji ? '<div class="card-top">' + (emoji ? '<div class="card-emoji">' + emoji + '</div>' : '') + '<div class="card-name">' + title + '</div></div>' : '') + (desc ? '<div class="card-desc">' + desc + '</div>' : '') + (badge ? '<div class="card-footer"><div class="card-badge" style="background:var(--card-badge-bg);color:var(--card-badge-text)">' + badge + '</div></div>' : '') + '</div></div>';
 }
 
 module.exports = {
