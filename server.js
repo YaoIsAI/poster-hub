@@ -125,7 +125,8 @@ function fetchGitHub(nlText) {
   try {
     // 1. 获取 repo 元数据
     const ghToken = process.env.GITHUB_TOKEN || '';
-    const apiData = execSync(`curl -sL "https://api.github.com/repos/${owner}/${repo}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" -H "Authorization: token ${ghToken}" --max-time 10`, { encoding: 'utf8' });
+    const authHdr = ghToken ? `-H "Authorization: token ${ghToken}"` : '';
+    const apiData = execSync(`curl -sL "https://api.github.com/repos/${owner}/${repo}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" ${authHdr} --max-time 10`, { encoding: 'utf8' });
     const info = JSON.parse(apiData);
 
     // 2. 获取 README（中英文）
@@ -136,7 +137,7 @@ function fetchGitHub(nlText) {
     for (const [fname, varName] of readmeFiles) {
       for (const branch of ['main', 'master']) {
         try {
-          const rd = execSync(`curl -sL "https://api.github.com/repos/${owner}/${repo}/contents/${fname}?ref=${branch}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" -H "Authorization: token ${ghToken}" --max-time 10`, { encoding: 'utf8' });
+          const rd = execSync(`curl -sL "https://api.github.com/repos/${owner}/${repo}/contents/${fname}?ref=${branch}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" ${authHdr} --max-time 10`, { encoding: 'utf8' });
           const parsed = JSON.parse(rd);
           if (parsed.content) {
             const content = Buffer.from(parsed.content, 'base64').toString('utf8');
@@ -152,7 +153,7 @@ function fetchGitHub(nlText) {
     let skillMd = '';
     for (const branch of ['main', 'master']) {
       try {
-        const rd = execSync(`curl -sL "https://api.github.com/repos/${owner}/${repo}/contents/SKILL.md?ref=${branch}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" -H "Authorization: token ${ghToken}" --max-time 10`, { encoding: 'utf8' });
+        const rd = execSync(`curl -sL "https://api.github.com/repos/${owner}/${repo}/contents/SKILL.md?ref=${branch}" -H "Accept: application/json" -H "User-Agent: PosterHub/1.0" ${authHdr} --max-time 10`, { encoding: 'utf8' });
         const parsed = JSON.parse(rd);
         if (parsed.content) { skillMd = Buffer.from(parsed.content, 'base64').toString('utf8'); break; }
       } catch(e) {}

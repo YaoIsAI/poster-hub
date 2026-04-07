@@ -163,7 +163,14 @@ function parseNaturalLanguage(nl, lang = 'zh') {
     const starsMatch = text.match(/⭐\s*([\d,]+)\s*stars?/);
     const langMatch = text.match(/技术栈[：:]\s*([^，,，\s]+)/);
     const topicsMatch = text.match(/标签[：:]\s*(.+?)(?:，|$)/);
-    const descMatch = text.match(/-\s*([^⭐\n]+?)(?:，|\n|$)/);
+    // 用 " - " (space-dash-space) 分割，firstPart 是 owner/repo，rest 是 description
+    // 注意：描述中可能也有 " - "（如 "poster-hub - xxx"），所以要 split 后取第二段以后再拼回
+    const parts = text.split(/\s+-\s+/);
+    // parts[0] = "owner/repo", parts[1+] = description（可能含多个 " - "）
+    const rawDesc = parts.length > 1 ? parts.slice(1).join(' - ').trim() : '';
+    // 从 rawDesc 中提取主要描述（取第一段逗号前的英文，或全中文）
+    const descFirst = rawDesc.split(/[,，]/)[0].trim();
+    const descMatch = descFirst ? [null, descFirst] : null;
     const stars = starsMatch ? parseInt(starsMatch[1].replace(/,/g, ''), 10) : 0;
     const lang = langMatch ? langMatch[1].trim() : '';
     const topics = topicsMatch ? topicsMatch[1].split(/[\/、]/).map(t => t.trim()).filter(Boolean) : [];
