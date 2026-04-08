@@ -2,7 +2,15 @@
   "name": "poster-hub",
   "version": "1.0.0",
   "description": "AI-powered project poster generator — generate beautiful project introduction posters from GitHub URLs",
-  "keywords": ["poster", "github", "ai", "generator", "openai", "playwright", "screenshot"],
+  "keywords": [
+    "poster",
+    "github",
+    "ai",
+    "generator",
+    "html",
+    "png",
+    "screenshot"
+  ],
   "homepage": "https://github.com/YaoIsAI/poster-hub#readme",
   "repository": {
     "type": "git",
@@ -16,11 +24,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "generate": "node generate-poster.js"
+    "generate": "node generate-poster.js",
+    "postinstall": "npx @sparticuz/chromium install"
   },
   "dependencies": {
     "dotenv": "^17.4.1",
-    "playwright": "^1.40.0"
+    "puppeteer-core": "^24.40.0",
+    "@sparticuz/chromium": "^120.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
