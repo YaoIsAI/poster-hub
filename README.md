@@ -59,21 +59,35 @@ PosterHub 是一个**本地优先**的 AI 海报生成工具。你给它一个 G
 git clone https://github.com/YaoIsAI/poster-hub.git
 cd poster-hub
 npm install
-
-# 安装 Chromium 浏览器（约 100MB，轻量级）
-npx @sparticuz/chromium install
 ```
 
-> 不安装 Chromium 浏览器将无法生成海报图片。
-
-### 2. 启动
+### 2. 启动（自动检测 Chrome）
 
 ```bash
 node server.js
-# 服务运行在 http://localhost:3008
 ```
 
-### 3. 使用
+> PosterHub 会**自动检测**系统中的 Chrome/Chromium：
+> - 🍎 macOS：优先使用 Playwright / Google Chrome
+> - 🪟 Windows：自动检测 Program Files 中的 Chrome
+> - 🐧 Linux：检测 /usr/bin/chromium
+>
+> 如果都找不到，启动时会显示友好的安装提示。
+
+### 3. 安装 Chrome（如果提示找不到）
+
+```bash
+# macOS / Windows: 安装 Google Chrome
+# https://www.google.com/chrome/
+
+# Linux (Ubuntu/Debian)
+sudo apt install chromium-browser
+
+# 或使用 Playwright 自动安装
+npx playwright install chromium
+```
+
+### 4. 使用
 
 **方式 A — Web 界面**（最简单）
 打开 http://localhost:3008 ，粘贴 GitHub 地址，点击「生成简介卡」
