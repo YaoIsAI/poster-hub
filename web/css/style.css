@@ -247,9 +247,9 @@ body {
   margin-bottom: 48px;
 }
 .gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 20px;
+  /* 瀑布流布局：CSS columns 自动填充 */
+  column-count: 4;
+  column-gap: 16px;
   padding: 0 0 60px;
 }
 .gallery-card {
@@ -258,10 +258,12 @@ body {
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
+  break-inside: avoid; /* 防止卡片被截断 */
+  margin-bottom: 16px;
 }
 .gallery-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 .gallery-card img {
   width: 100%;
@@ -336,10 +338,18 @@ body {
 .footer a { color: var(--primary); text-decoration: none; }
 
 /* ===== Responsive ===== */
+@media (max-width: 480px) {
+  .gallery-grid { column-count: 1; }
+}
+@media (min-width: 481px) and (max-width: 768px) {
+  .gallery-grid { column-count: 2; }
+}
+@media (min-width: 769px) and (max-width: 1024px) {
+  .gallery-grid { column-count: 3; }
+}
 @media (max-width: 640px) {
   .input-group { flex-direction: column; }
   .headline { font-size: 28px; }
-  .gallery-grid { grid-template-columns: 1fr; }
 }
 
 /* ===== Input Tabs ===== */
