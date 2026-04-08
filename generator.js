@@ -73,7 +73,7 @@ const THEMES = {
     cardShadowHover: '0 8px 24px rgba(74,144,226,0.22)',
     cardRadius: 12,
     divider: '#E2E8F0',
-    fontFamily: "'Inter', 'PingFang SC', -apple-system, sans-serif",
+    fontFamily: "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
     scale: 2, pageWidth: 780,
     sectionGap: 56, cardGap: 20,
     heroPadding: '96px 64px 104px', sectionPadding: '40px',
@@ -120,7 +120,7 @@ const THEMES = {
     divider:       '#E5E5EA',
     dividerLight:  '#F5F5F7',
     // 页宽
-    fontFamily: "'Inter', 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontFamily: "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
     scale: 2,
     pageWidth: 780,
     sectionGap: 56,
@@ -444,7 +444,7 @@ function generatePoster({ config, items, theme }) {
 '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>' + hero.title + '</title>' +
 '<style>' +
 ':root { --hero-bg:' + t.bgWhite + '; --hero-text:' + t.textPrimary + '; --hero-subtext:' + t.textSecondary + '; --hero-badge-bg:' + t.bgGray + '; --hero-badge-text:' + t.textSecondary + '; --hero-divider:' + (t.divider || t.bgGray) + '; --accent:' + (t.accent || '#FF5B4F') + '; --stat-card-bg:' + t.bgGray + '; --stat-num-color:' + t.textPrimary + '; --stat-label-color:' + t.textSecondary + '; --section-label:' + t.textSecondary + '; --section-rule:' + (t.divider || t.bgGray) + '; --section-count:' + t.textTertiary + '; --card-bg:' + t.bgCard + '; --card-text:' + t.textPrimary + '; --card-desc:' + t.textSecondary + '; --card-badge-bg:' + t.bgGray + '; --card-badge-text:' + t.textSecondary + '; --card-dot:' + (t.accent || t.textPrimary) + '; --footer-rule:' + (t.divider || t.bgGray) + '; --footer-line1:' + t.textPrimary + '; --footer-line2:' + t.textTertiary + '; --footer-brand:' + t.textTertiary + '; }' +
-'@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");' +
+// 系统字体优先，无外部依赖，保证截图一致性
 '* { margin: 0; padding: 0; box-sizing: border-box; }' +
 'body { font-family: ' + t.fontFamily + '; background: ' + t.bgWhite + '; color: ' + t.textPrimary + '; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; width: 100%; max-width: ' + t.pageWidth + 'px; margin: 0 auto; }' +
 

@@ -197,7 +197,18 @@ async function hiresPoster(htmlPath, outputPath) {
   await page.goto(fileUrl, { waitUntil: 'networkidle0' });
 
   // 等待字体和外部资源加载
-  await new Promise(r => setTimeout(r, 2500));
+  // 使用 document.fonts.ready 确保所有字体（包括 Google Fonts）已加载
+  try {
+    await page.evaluate(() => document.fonts.ready);
+    console.log('✅ 字体加载完成');
+  } catch (e) {
+    // 如果字体 API 不可用，回退到固定等待
+    console.log('ℹ️ 字体 API 不可用，使用固定等待');
+    await new Promise(r => setTimeout(r, 3000));
+  }
+
+  // 再等一小段时间确保渲染稳定
+  await new Promise(r => setTimeout(r, 500));
 
   // 测量内容高度
   const contentHeight = await measurePosterHeight(page);
