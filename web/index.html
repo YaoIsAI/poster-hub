@@ -13,7 +13,7 @@
       z-index: 0;
       overflow: hidden;
       pointer-events: none;
-      opacity: 0.12;
+      opacity: 0.6;
     }
     .poster-bg-inner {
       column-count: 6;
@@ -22,15 +22,18 @@
       animation: flowDown 60s linear infinite;
     }
     @keyframes flowDown {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(-50%); }
+      0% { transform: translateY(0) translateX(0); opacity: 0.6; }
+      25% { transform: translateY(-12%) translateX(4px); opacity: 0.55; }
+      50% { transform: translateY(-25%) translateX(0); opacity: 0.6; }
+      75% { transform: translateY(-37%) translateX(-4px); opacity: 0.55; }
+      100% { transform: translateY(-50%) translateX(0); opacity: 0.6; }
     }
     .poster-bg-item {
       break-inside: avoid;
       margin-bottom: 12px;
       border-radius: 8px;
       overflow: hidden;
-      opacity: 0.7;
+      opacity: 0.6;
       transition: opacity 0.3s;
     }
     .poster-bg-item:hover { opacity: 1; }
@@ -42,14 +45,14 @@
     /* 让主内容在背景之上 */
     body > * { position: relative; z-index: 1; }
     .main, .nav, footer { position: relative; z-index: 1; }
-    /* 毛玻璃效果叠加 */
+    /* 毛玻璃叠加层 */
     body::before {
       content: '';
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 0;
-      background: rgba(255,255,255,0.4);
-      backdrop-filter: blur(2px);
+      z-index: 1;
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(6px);
     }
     @media (max-width: 768px) {
       .poster-bg-inner { column-count: 3; }
