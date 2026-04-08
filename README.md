@@ -112,13 +112,32 @@ curl -X POST http://localhost:3008/api/generate \
 
 ```bash
 cp .env.example .env
-# 编辑 .env 填入你的 API Key
+# 编辑 .env 填入你的配置
 ```
 
-| 环境变量 | 说明 | 默认值 |
+### LLM 配置（支持任意 OpenAI 兼容 API）
+
+| 提供商 | LLM_BASE_URL | LLM_API_KEY | LLM_MODEL |
+|--------|-------------|-------------|-----------|
+| **DeepSeek** | `https://api.deepseek.com/v1` | 从 platform.deepseek.com 获取 | `deepseek-chat` |
+| **OpenAI** | `https://api.openai.com/v1` | 从 platform.openai.com 获取 | `gpt-4o-mini` |
+| **Qwen (阿里云)** | `https://dashscope.aliyuncs.com/v1` | 从阿里云百炼获取 | `qwen-turbo` |
+| **SiliconFlow** | `https://api.siliconflow.cn/v1` | 从 siliconflow.cn 获取 | `deepseek-chat` |
+| **MiniMax** | `https://api.minimaxi.com/v1` | 从 api.minimaxi.com 获取 | `MiniMax-M2.1` |
+| **Ollama (本地)** | `http://localhost:11434/v1` | 填 `ollama` 即可 | `llama3` / `qwen2.5` |
+
+> 💡 **Ollama 本地模型**：无需 API Key，PosterHub 会自动使用本地 Ollama。需先安装 [Ollama](https://ollama.com) 并拉取模型。
+
+### GitHub Token（重要！）
+
+| 环境变量 | 说明 | 获取方式 |
+|---------|------|---------|
+| `GITHUB_TOKEN` | 提高 GitHub API 限流阈值 | GitHub Settings → Developer Settings → Personal Access Tokens |
+
+> ⚠️ 不配置 GitHub Token 会被限流，导致无法获取项目 stars/description。
+
+| 其他变量 | 说明 | 默认值 |
 |---------|------|--------|
-| `GITHUB_TOKEN` | GitHub API Token（获取完整 stars 等数据） | 无 |
-| `LLM_API_KEY` | OpenAI 兼容 API Key（启用 AI 深度分析） | 无 |
 | `PORT` | 服务端口 | `3008` |
 | `POSTER_BRAND_NAME` | 海报底部品牌名称 | `PosterHub` |
 
@@ -134,6 +153,8 @@ poster-hub/
 ├── local-llm.js        # LLM 项目分析
 ├── generate-poster.js   # 命令行工具
 ├── SKILL.md            # AI 助手技能定义
+├── poster-generator.js  # LLM 驱动的自适应 CSS 生成器
+├── design-system.js     # VoltAgent DESIGN.md 设计系统解析器
 ├── web/                # Web 界面
 │   ├── index.html      # 生成器
 │   └── gallery.html    # 海报画廊

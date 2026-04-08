@@ -503,9 +503,9 @@ function generatePoster({ config, items, theme }) {
 '.card-body { padding: ' + sc(12) + ' ' + sc(12) + ' ' + sc(10) + '; }' +
 
 // Card top row
-'.card-top { display: flex; align-items: center; gap: ' + sc(8) + '; margin-bottom: ' + sc(8) + '; }' +
+'.card-top { display: flex; align-items: center; gap: ' + sc(8) + '; margin-bottom: ' + sc(8) + '; min-width: 0; }' +
 '.card-emoji { font-size: ' + sc(16) + '; line-height: 1; flex-shrink: 0; }' +
-'.card-name { font-size: ' + sc(13) + '; font-weight: 700; color: ' + t.textPrimary + '; line-height: 1.3; letter-spacing: -0.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }' +
+'.card-name { font-size: ' + sc(13) + '; font-weight: 700; color: ' + t.textPrimary + '; line-height: 1.3; letter-spacing: -0.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }' +
 
 // Description
 '.card-desc { font-size: ' + sc(11) + '; color: ' + t.textSecondary + '; line-height: 1.55; margin-bottom: ' + sc(10) + '; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: ' + sc(33) + '; }' +

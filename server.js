@@ -4,9 +4,57 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const { execSync } = require('child_process');
-const { generateFromNaturalLanguage, generateFromConfig } = require('./generator');
+const { generateFromNaturalLanguage, generateFromConfig, THEMES } = require('./generator');
 const { scanProjectDir, analyzeWithLLM } = require('./local-llm');
 const { hiresPoster } = require('./screenshot');
+const { generateAdaptiveCSS, generateWithLLM } = require('./poster-generator');
+
+// ═══════════════════════════════════════════
+//  海报生成辅助函数
+// ═══════════════════════════════════════════
+
+function formatStars(n) {
+  if (!n || n <= 0) return '-';
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(n);
+}
+
+function applyDesignSpecToTheme(theme, spec) {
+  if (!spec || !theme) return;
+  try {
+    if (spec.bgColor) theme.bgWhite = spec.bgColor;
+    if (spec.bgColorAlt) theme.bgGray = spec.bgColorAlt;
+    if (spec.textColor) theme.textPrimary = spec.textColor;
+    if (spec.textColorAlt) theme.textSecondary = spec.textColorAlt;
+    if (spec.accentColor) theme.accent = spec.accentColor;
+    if (spec.dividerColor) theme.divider = spec.dividerColor;
+    if (spec.isDark && spec.bgColor) {
+      // 深色主题：转换为浅色主题（反色处理）
+      // 深色背景(#000) → 浅色背景(#FFF)，深色文字 → 白色文字
+      const bg = spec.bgColor.replace('#', '');
+      const r = parseInt(bg.slice(0, 2), 16);
+      const g = parseInt(bg.slice(2, 4), 16);
+      const b = parseInt(bg.slice(4, 6), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      if (luminance < 0.5) {
+        // 深色背景 → 反转为浅色背景
+        theme.bgWhite = '#FFFFFF';
+        theme.bgGray = '#F5F5F7';
+        theme.bgCard = '#FFFFFF';
+        theme.textPrimary = spec.textColorAlt || '#1D1D1F';
+        theme.textSecondary = spec.textColor || '#6E6E73';
+        theme.textTertiary = '#86868B';
+        theme.divider = spec.dividerColor || '#E5E5EA';
+        theme.accent = spec.accentColor || '#1D1D1F';
+        console.log('🔄 深色主题已反转为浅色模式');
+      }
+    }
+  } catch (e) {
+    console.log('⚠️ applyDesignSpecToTheme 失败:', e.message);
+  }
+}
 
 const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(__dirname, '..');
 function autoDetectLocal(nlText) {
@@ -262,8 +310,8 @@ function fetchBestDesignMdFromAwesome(owner, repo, desc, lang, topics) {
   const targetSlugs = langMap[lang] || [];
   const keywordMatches = [
     // 语言/框架相关
-    { kw: 'typescript', slug: 'stripe' },
     { kw: 'typescript', slug: 'linear' },
+    { kw: 'typescript', slug: 'vercel' },
     { kw: 'python', slug: 'neon' },
     { kw: 'ai', slug: 'openai' },
     { kw: 'chatbot', slug: 'openai' },
@@ -730,9 +778,83 @@ function validatePosterHTML(html, sourceData) {
 }
 
 // 用 AI 生成海报
-        const { html, theme } = posterConfig
-          ? generateFromConfig(posterConfig)
-          : generateFromNaturalLanguage(finalNl, genOverrides);
+        // 🎯 新架构：优先使用自适应 CSS 生成器
+        let html;
+        let theme;
+        
+        try {
+          // 构建海报结构化数据
+          if (posterConfig) {
+            // 本地项目：使用 posterConfig（已有 LLM 解析的完整配置）
+            const { hero, sections, stats, footer } = posterConfig;
+            theme = THEMES[posterConfig.theme] || THEMES['apple-minimal'];
+            // 应用 DESIGN.md 规范
+            if (posterConfig.designSpec) {
+              applyDesignSpecToTheme(theme, posterConfig.designSpec);
+            }
+            html = generateAdaptiveCSS({ hero, sections, stats, footer, theme, lang });
+          } else if (ghData) {
+            // GitHub 项目：从 ghData 构建结构化数据
+            const stars = ghData.stars > 0 ? ghData.stars : null;
+            const stats = [
+              { label: 'Stars', value: stars ? formatStars(stars) : '-' },
+              { label: 'Language', value: ghData.lang || '-' },
+              { label: 'Topics', value: String(ghData.topics ? ghData.topics.length : 0) },
+            ];
+            const hero = {
+              badge: ghData.topics && ghData.topics[0] ? '⭐ ' + ghData.topics[0] : (stars ? '⭐ ' + formatStars(stars) : 'GitHub 项目'),
+              title: ghData.owner + '/' + ghData.name,
+              subtitle: ghData.desc || ghData.name,
+            };
+            
+            // 构建 sections：至少有一个默认 section
+            const sections = [];
+            if (ghData.topics && ghData.topics.length > 0) {
+              sections.push({
+                label: lang === 'en' ? 'Topics' : '📦 项目信息',
+                items: ghData.topics.map(t => ({ emoji: '🏷️', title: t, desc: lang === 'en' ? 'Topic' : '标签', badge: lang === 'en' ? 'Tag' : '标签' })),
+              });
+            } else if (!ghData.desc && !ghData.readme) {
+              // API 数据为空时，至少显示项目链接
+              sections.push({
+                label: lang === 'en' ? 'GitHub' : '🔗 访问链接',
+                items: [{ emoji: '📦', title: ghData.owner + '/' + ghData.name, desc: 'View on GitHub', badge: 'github.com' }],
+              });
+            }
+            
+            // 如果什么都没有，至少加一个默认 section
+            if (sections.length === 0) {
+              sections.push({
+                label: lang === 'en' ? 'About' : '📝 项目简介',
+                items: [{ emoji: '💡', title: ghData.desc || ghData.name, desc: ghData.lang ? 'Language: ' + ghData.lang : 'View on GitHub', badge: ghData.lang || 'GitHub' }],
+              });
+            }
+            
+            const footer = {
+              line1: ghData.desc || 'Powered by PosterHub',
+              line2: 'github.com/' + ghData.owner + '/' + ghData.name,
+            };
+            theme = THEMES['apple-minimal'];
+            // 应用 VoltAgent DESIGN.md 规范
+            if (ghData.designSpec) {
+              applyDesignSpecToTheme(theme, ghData.designSpec);
+            }
+            html = generateAdaptiveCSS({ hero, sections, stats, footer, theme, lang });
+          } else {
+            // 其他输入：使用旧的 NL 解析方式（fallback）
+            const result = generateFromNaturalLanguage(finalNl, genOverrides);
+            html = result.html;
+            theme = result.theme;
+          }
+          console.log('✅ 自适应CSS海报生成成功');
+        } catch (e) {
+          console.warn('⚠️ 自适应CSS生成失败，使用旧方式:', e.message);
+          const result = posterConfig
+            ? generateFromConfig(posterConfig)
+            : generateFromNaturalLanguage(finalNl, genOverrides);
+          html = result.html;
+          theme = result.theme;
+        }
 
         // 验证海报内容
         const sourceForValidation = ghData || localData || {};
