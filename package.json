@@ -1,7 +1,18 @@
 {
   "name": "poster-hub",
   "version": "1.0.0",
-  "description": "AI驱动的智能海报生成平台",
+  "description": "AI-powered project poster generator — generate beautiful project introduction posters from GitHub URLs",
+  "keywords": ["poster", "github", "ai", "generator", "openai", "playwright", "screenshot"],
+  "homepage": "https://github.com/YaoIsAI/poster-hub#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YaoIsAI/poster-hub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YaoIsAI/poster-hub/issues"
+  },
+  "author": "YaoIsAI",
+  "license": "MIT",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,5 +21,8 @@
   "dependencies": {
     "dotenv": "^17.4.1",
     "playwright": "^1.40.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
