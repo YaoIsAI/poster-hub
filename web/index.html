@@ -5,8 +5,66 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PosterHub — AI 海报生成</title>
   <link rel="stylesheet" href="/web/css/style.css">
+  <style>
+    /* 动态海报瀑布流背景 */
+    .poster-bg {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0.12;
+    }
+    .poster-bg-inner {
+      column-count: 6;
+      column-gap: 12px;
+      padding: 0 12px;
+      animation: flowDown 60s linear infinite;
+    }
+    @keyframes flowDown {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-50%); }
+    }
+    .poster-bg-item {
+      break-inside: avoid;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      overflow: hidden;
+      opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+    .poster-bg-item:hover { opacity: 1; }
+    .poster-bg-item img {
+      width: 100%;
+      display: block;
+      border-radius: 8px;
+    }
+    /* 让主内容在背景之上 */
+    body > * { position: relative; z-index: 1; }
+    .main, .nav, footer { position: relative; z-index: 1; }
+    /* 毛玻璃效果叠加 */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 0;
+      background: rgba(255,255,255,0.4);
+      backdrop-filter: blur(2px);
+    }
+    @media (max-width: 768px) {
+      .poster-bg-inner { column-count: 3; }
+    }
+    @media (max-width: 480px) {
+      .poster-bg-inner { column-count: 2; }
+    }
+  </style>
 </head>
 <body>
+
+<!-- 动态瀑布流背景 -->
+<div class="poster-bg" id="posterBg">
+  <div class="poster-bg-inner" id="posterBgInner"></div>
+</div>
 
 <!-- Nav -->
 <nav class="nav">
@@ -238,7 +296,30 @@ function setLang(lang) {
   } else {
     setLang('zh'); // fallback to initialization
   }
+  // 加载瀑布流背景
+  loadPosterBg();
 })();
+
+// ===== 动态海报瀑布流背景 =====
+async function loadPosterBg() {
+  try {
+    const res = await fetch('/api/list');
+    const data = await res.json();
+    if (!data.posters || data.posters.length === 0) return;
+    
+    const inner = document.getElementById('posterBgInner');
+    // 只取最新的 20 张，随机排列
+    const posters = data.posters.slice(0, 20).sort(() => Math.random() - 0.5);
+    // 复制两份，实现无缝滚动
+    const all = [...posters, ...posters];
+    
+    inner.innerHTML = all.map(p =>
+      '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png?thumb=1" loading="lazy" alt=""></div>'
+    ).join('');
+  } catch(e) {
+    console.log('背景海报加载失败:', e.message);
+  }
+}
 
 // ===== 核心逻辑 =====
 function selectTab(el) {
