@@ -573,17 +573,25 @@ function setCors(res) {
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
+  const warnings = [];  // 统一警告收集（声明在使用之前）
 
   if (req.method === 'OPTIONS') { setCors(res); res.writeHead(204); res.end(); return; }
 
   // 静态文件
   if (pathname.startsWith('/web/')) {
     const fp = path.join(__dirname, pathname);
-    const ext = path.extname(fp);
-    const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png' };
-    if (fs.existsSync(fp)) {
-      res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain' });
-      fs.createReadStream(fp).pipe(res);
+    // 处理目录请求（自动找 index.html）
+    const stat = fs.existsSync(fp) ? fs.statSync(fp) : null;
+    let servePath = fp;
+    if (stat && stat.isDirectory()) {
+      servePath = path.join(fp, 'index.html');
+      if (!fs.existsSync(servePath)) { res.writeHead(403); res.end('Directory listing denied'); return; }
+    }
+    const ext = path.extname(servePath);
+    const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+    if (fs.existsSync(servePath)) {
+      res.writeHead(200, { 'Content-Type': mime[ext] || 'application/octet-stream' });
+      fs.createReadStream(servePath).pipe(res);
     } else { res.writeHead(404); res.end('Not Found'); }
     return;
   }
@@ -878,7 +886,6 @@ function validatePosterHTML(html, sourceData) {
         };
         fs.writeFileSync(path.join(outDir, 'meta.json'), JSON.stringify(meta, null, 2));
 
-        const warnings = [];
         if (!ghData && localData && !localData.readme && !posterConfig) warnings.push('📁 该目录无 README.md，内容可能不完整');
         if (ghData && ghData.notice) warnings.push(ghData.notice);
         json(res, 200, { ok: true, posterId: id, title: meta.title, github: meta.github, stars: meta.stars, hasSkill: meta.hasSkill, warnings });

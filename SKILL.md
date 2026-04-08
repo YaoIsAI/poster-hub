@@ -108,6 +108,32 @@ curl -X POST http://localhost:3008/api/generate \
 
 ---
 
+## 🌳 本地项目输入（完整流程）
+
+当用户给的是本地路径（如 `~/my-project`）时，系统会：
+
+```
+1. autoDetectLocal() → 检测项目类型（Node.js / Python / Go / Rust / Java 等）
+2. scanProjectDir() → 扫描项目所有文件：
+   - 读取关键文件: package.json / pyproject.toml / Cargo.toml / go.mod / README.md / SPEC.md
+   - 读取目录结构（最多50个文件，50KB/文件）
+   - 跳过: node_modules / .git / dist / build / 二进制文件
+3. analyzeWithLLM() → 用 LLM 分析项目内容：
+   - 读取所有关键文件内容
+   - 生成海报配置 JSON（title/description/techStack/sections/footer）
+   - 支持自动识别功能模块、API、特性
+4. generateAdaptiveCSS() → 根据配置生成自适应海报
+```
+
+**注意：本地项目需要配置 LLM_API_KEY**，否则会回退到简陋的 README 提取。
+
+支持的本地路径：
+- `~/my-project`
+- `./my-project`
+- 相对路径（如 `inventory-management`）
+
+---
+
 ## 给 AI 助手的说明
 
 当你学会这个技能后：
@@ -121,6 +147,17 @@ curl -X POST http://localhost:3008/api/generate \
 - 用户说"这个项目" → 识别当前目录，生成海报
 - 用户说"帮我生成海报" → 尝试在桌面或工作目录找项目
 - 用户说中文/英文 → 自动设置 lang 参数
+
+**本地项目示例：**
+```
+用户: "帮我生成 ~/Desktop/openclaw/projects/inventory-management 的海报"
+AI: 
+  1. 扫描目录，读取 package.json / README.md 等
+  2. 调用 analyzeWithLLM() 分析项目
+  3. 生成海报配置（标题/技术栈/功能模块）
+  4. 调用 generateAdaptiveCSS() 生成海报
+  5. 返回海报下载链接
+```
 
 ## License
 
