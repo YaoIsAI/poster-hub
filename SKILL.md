@@ -95,16 +95,31 @@ cp .env.example .env
 ## API
 
 ```bash
-# 生成海报
+# 生成项目海报（GitHub / 本地项目）
 curl -X POST http://localhost:3008/api/generate \
   -H "Content-Type: application/json" \
   -d '{"nl": "https://github.com/facebook/react", "lang": "zh"}'
 
-# 参数说明
-# nl: GitHub URL / 本地路径 / 项目描述
-# lang: "zh"（默认）或 "en"
-# theme: "apple" / "dark" / "cyber" / "cpython" / "inventory"
+# 生成通用海报（任意内容描述）
+curl -X POST http://localhost:3008/api/prompt \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "生成一张微信风格的朋友圈推广海报，内容是...", "type": "wechat", "lang": "zh"}'
+
+# 支持的类型: wechat / xiaohongshu / performance / corporate / custom
 ```
+
+### API 参数
+
+**/api/generate:**
+- `nl`: GitHub URL / 本地路径 / 项目描述
+- `lang`: "zh"（默认）或 "en"
+- `theme`: "apple" / "dark" / "cyber" / "cpython" / "inventory"
+
+**/api/prompt:**
+- `prompt`: 海报内容描述（必须）
+- `type`: 海报类型（wechat/xiaohongshu/performance/corporate/custom）
+- `lang`: "zh" 或 "en"
+- `width`: 海报宽度（默认 780px）
 
 ---
 

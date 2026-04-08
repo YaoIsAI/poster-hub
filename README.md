@@ -196,6 +196,30 @@ Content-Type: application/json
 }
 ```
 
+### 生成通用海报（支持任意内容描述）
+
+```bash
+POST /api/prompt
+Content-Type: application/json
+
+{
+  "prompt": "生成一张微信风格的朋友圈推广海报，内容是介绍 AI瑶的造物社",
+  "type": "wechat" | "xiaohongshu" | "performance" | "corporate" | "custom",
+  "lang": "zh" | "en",
+  "width": 780
+}
+```
+
+### 支持的海报类型
+
+| 类型 | 说明 |
+|------|------|
+| `wechat` | 微信风格，简洁大方，适合朋友圈传播 |
+| `xiaohongshu` | 小红书风格，粉色渐变，圆角卡片 |
+| `performance` | 演唱会海报，深色背景，霓虹渐变 |
+| `corporate` | 企业宣传，蓝色主调，专业B端风格 |
+| `custom` | 自定义，根据描述生成最合适的风格 |
+
 ### 下载海报
 
 ```bash

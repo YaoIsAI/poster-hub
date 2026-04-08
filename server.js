@@ -8,6 +8,7 @@ const { generateFromNaturalLanguage, generateFromConfig, THEMES } = require('./g
 const { scanProjectDir, analyzeWithLLM } = require('./local-llm');
 const { hiresPoster } = require('./screenshot');
 const { generateAdaptiveCSS, generateWithLLM } = require('./poster-generator');
+const { generateFromPrompt, getPosterTypes } = require('./prompt-generator');
 
 // ═══════════════════════════════════════════
 //  海报生成辅助函数
@@ -894,6 +895,63 @@ function validatePosterHTML(html, sourceData) {
         json(res, 500, { ok: false, error: e.message });
       }
     });
+    return;
+  }
+
+  // ═══════════════════════════════════════════
+  //  API: 通用海报生成（支持任意内容描述）
+  // ═══════════════════════════════════════════
+  if (req.method === 'POST' && pathname === '/api/prompt') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { prompt, type = 'custom', image, lang = 'zh', width = 780, customCss } = JSON.parse(body);
+        
+        if (!prompt || prompt.trim().length < 3) {
+          json(res, 400, { ok: false, error: 'prompt 必须至少 3 个字符' });
+          return;
+        }
+        
+        console.log(`🎨 [通用海报] type=${type}, prompt="${prompt.slice(0, 50)}..."`);
+        
+        const { html, style } = await generateFromPrompt({ prompt, type, image, lang, width, customCss });
+        
+        // 保存 HTML
+        const posterId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+        const outDir = './posters/' + posterId;
+        fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(outDir + '/poster.html', html, 'utf8');
+        
+        // 截图
+        console.log('📸 正在截图...');
+        const pngPath = outDir + '/poster.png';
+        await hiresPoster(outDir + '/poster.html', pngPath);
+        
+        const meta = {
+          id: posterId,
+          title: prompt.slice(0, 80),
+          type,
+          style,
+          lang,
+          created: new Date().toISOString(),
+        };
+        fs.writeFileSync(outDir + '/meta.json', JSON.stringify(meta, null, 2));
+        
+        console.log(`✅ 通用海报生成成功: ${posterId}`);
+        json(res, 200, { ok: true, posterId, style, meta });
+        
+      } catch(e) {
+        console.error('❌ 通用海报生成失败: ' + e.message);
+        json(res, 500, { ok: false, error: e.message });
+      }
+    });
+    return;
+  }
+
+  // API: 获取支持的类型列表
+  if (req.method === 'GET' && pathname === '/api/types') {
+    json(res, 200, { ok: true, types: getPosterTypes() });
     return;
   }
 
