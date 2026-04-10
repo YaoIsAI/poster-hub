@@ -249,21 +249,23 @@ body {
 .gallery-grid {
   /* 瀑布流布局：CSS columns 自动填充 */
   column-count: 4;
-  column-gap: 16px;
-  padding: 0 0 60px;
+  column-gap: 24px;
+  column-fill: auto;
+  padding: 0 24px 60px;
 }
 .gallery-card {
-  background: #F9F9F9;
+  background: #fff;
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  break-inside: avoid; /* 防止卡片被截断 */
-  margin-bottom: 16px;
+  break-inside: avoid;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
 }
 .gallery-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08);
 }
 .gallery-card img {
   width: 100%;

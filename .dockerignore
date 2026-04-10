@@ -1,0 +1,51 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# 环境变量（包含敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 海报数据（生产环境可能需要持久化）
+posters/
+
+# Git
+.git/
+.gitignore
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 临时文件
+*.log
+*.tmp
+*.bak
+*.backup
+
+# 测试文件
+coverage/
+.nyc_output/
+test/
+tests/
+
+# 构建产物
+dist/
+build/
+
+# 文档（可选，减少镜像大小）
+*.md
+!README.md
+docs/

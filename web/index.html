@@ -13,6 +13,50 @@
       z-index: 0;
       overflow: hidden;
       pointer-events: none;
+    }
+    .poster-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 1;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(1px);
+      pointer-events: none;
+    }
+    #posterBgInner {
+      display: flex;
+      gap: 36px;
+      padding: 0 12px;
+    }
+    .poster-bg-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+    @keyframes flowDown {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-50%); }
+    }
+    .poster-bg-item img {
+      width: 100%;
+      display: block;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06);
+    }
+    /* 主内容层 */
+    .main { position: relative; z-index: 2; transform: translateZ(0); }
+    .nav { position: relative; z-index: 3; transform: translateZ(0); }
+    @media (max-width: 1024px) {
+      #posterBgInner { gap: 24px; }
+      .poster-bg-col { animation: none; }
+    }
+    /* 动态海报瀑布流背景 */
+    .poster-bg {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
       opacity: 0.6;
     }
     .poster-bg-inner {
@@ -40,7 +84,8 @@
     .poster-bg-item img {
       width: 100%;
       display: block;
-      border-radius: 8px;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06);
     }
     /* 让主内容在背景之上 */
     body > * { position: relative; z-index: 1; }
@@ -291,7 +336,35 @@ function setLang(lang) {
   if (learnText) learnText.textContent = I18N[lang]['status.learning'];
 }
 
-// ===== 页面初始化（读取语言偏好）=====
+// ===== 加载动态瀑布流背景 =====
+async function loadPosterBg() {
+  try {
+    const res = await fetch('/api/list');
+    const data = await res.json();
+    if (!data.posters || data.posters.length === 0) return;
+    
+    const inner = document.getElementById('posterBgInner');
+    const posters = data.posters;
+    const cols = 6;
+    
+    let html = '';
+    for (let c = 0; c < cols; c++) {
+      html += '<div class="poster-bg-col">';
+      for (let rep = 0; rep < 3; rep++) {
+        for (let i = 0; i < posters.length; i++) {
+          if (i % cols === c) {
+            const p = posters[i];
+            html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png?thumb=1" loading="lazy"></div>';
+          }
+        }
+      }
+      html += '</div>';
+    }
+    inner.innerHTML = html;
+  } catch(e) { console.log('背景加载失败:', e.message); }
+}
+
+// ===== 页面初始化 =====
 (function initPage() {
   const savedLang = localStorage.getItem('posterhub-lang');
   if (savedLang && (savedLang === 'zh' || savedLang === 'en')) {
