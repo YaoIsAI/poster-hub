@@ -406,14 +406,16 @@ async function loadPosterBg() {
 
     let html = '';
     columns.forEach((col, i) => {
-      const safeCol = col.length ? col : posters.slice(0, Math.min(3, posters.length));
-      const stream = [...safeCol, ...safeCol, ...safeCol];
+      // 直接使用整列海报，不限制数量
+      const posterList = col.length ? col : posters.slice(0, Math.min(3, posters.length));
+      // 重复海报形成无缝滚动（需要足够多）
+      const repeatCount = Math.max(3, Math.ceil(20 / posterList.length));
+      const stream = Array(repeatCount).fill(posterList).flat();
       const duration = 60 + (i % 3) * 15;
       const delay = -1 * Math.floor(Math.random() * duration * 0.6);
 
       html += '<div class="poster-bg-col" style="--flow-duration:' + duration + 's;--flow-delay:' + delay + 's">';
       stream.forEach(p => {
-        // 使用原始图片，保持完整尺寸
         html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
       });
       html += '</div>';
