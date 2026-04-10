@@ -17,26 +17,25 @@
     }
     #posterBgInner {
       display: flex;
-      gap: 20px;
-      height: 100%;
+      flex-wrap: wrap;
+      gap: 16px;
       padding: 0 20px;
-      align-items: flex-start;
+      align-content: flex-start;
       justify-content: center;
       overflow: hidden;
     }
     .poster-bg-col {
-      flex: 0 0 180px;
       width: 180px;
       display: flex;
       flex-direction: column;
       gap: 16px;
       will-change: transform;
-      animation: posterFlowUp var(--flow-duration, 80s) linear infinite;
+      animation: posterFlowUp var(--flow-duration, 120s) linear infinite;
       animation-delay: var(--flow-delay, 0s);
       backface-visibility: hidden;
     }
     @keyframes posterFlowUp {
-      0% { transform: translate3d(0, 50%, 0); }
+      0% { transform: translate3d(0, 0, 0); }
       100% { transform: translate3d(0, -50%, 0); }
     }
     .poster-bg-item {
@@ -67,11 +66,12 @@
       backdrop-filter: blur(1px);
     }
     @media (max-width: 1024px) {
-      #posterBgInner { gap: 18px; }
-      .poster-bg-col { animation-duration: 90s; }
+      #posterBgInner { gap: 14px; }
+      .poster-bg-item img { width: 160px; }
     }
     @media (max-width: 768px) {
-      .poster-bg-col { animation-duration: 105s; }
+      #posterBgInner { gap: 12px; justify-content: flex-start; }
+      .poster-bg-item img { width: 140px; }
       .poster-bg-item { opacity: 0.5; }
     }
   </style>
@@ -405,20 +405,20 @@ async function loadPosterBg() {
     });
 
     let html = '';
-    columns.forEach((col, i) => {
-      // 直接使用整列海报，不限制数量
-      const posterList = col.length ? col : posters.slice(0, Math.min(3, posters.length));
-      // 重复海报形成无缝滚动（需要足够多）
-      const repeatCount = Math.max(3, Math.ceil(20 / posterList.length));
-      const stream = Array(repeatCount).fill(posterList).flat();
-      const duration = 60 + (i % 3) * 15;
-      const delay = -1 * Math.floor(Math.random() * duration * 0.6);
-
-      html += '<div class="poster-bg-col" style="--flow-duration:' + duration + 's;--flow-delay:' + delay + 's">';
-      stream.forEach(p => {
-        html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
-      });
-      html += '</div>';
+    // 按顺序排列，6个换一行
+    const cols = 6;
+    posters.forEach((p, i) => {
+      // 每6个创建一行
+      if (i % cols === 0) {
+        const rowItems = posters.slice(i, i + cols);
+        const rowDuration = 120 + (Math.floor(i / cols) % 3) * 20;
+        const rowDelay = -1 * (i / cols) * 5;
+        html += '<div class="poster-bg-col" style="--flow-duration:' + rowDuration + 's;--flow-delay:' + rowDelay + 's">';
+        rowItems.forEach(item => {
+          html += '<div class="poster-bg-item"><img src="/api/poster/' + item.id + '.png" loading="lazy" alt=""></div>';
+        });
+        html += '</div>';
+      }
     });
     inner.innerHTML = html;
   } catch(e) {
