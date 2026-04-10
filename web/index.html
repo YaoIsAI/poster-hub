@@ -17,18 +17,19 @@
     }
     #posterBgInner {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       gap: 16px;
       padding: 0 20px;
-      align-content: flex-start;
-      justify-content: center;
+      align-items: center;
       overflow: hidden;
     }
     .poster-bg-col {
-      width: 180px;
+      width: 100%;
+      max-width: 1150px;
       display: flex;
-      flex-direction: column;
+      flex-wrap: wrap;
       gap: 16px;
+      justify-content: center;
       will-change: transform;
       animation: posterFlowUp var(--flow-duration, 120s) linear infinite;
       animation-delay: var(--flow-delay, 0s);
@@ -44,6 +45,7 @@
       opacity: 0.6;
       transform: translateZ(0);
       background: #f0f0f0;
+      flex: 0 0 auto;
     }
     .poster-bg-item img {
       width: 180px;
@@ -395,17 +397,14 @@ async function loadPosterBg() {
     const inner = document.getElementById('posterBgInner');
     const posters = data.posters.slice(0, 18);
     
-    // 横向排列，6个换一行
+    // 横向排列，每行6个
     const COLS_PER_ROW = 6;
     let html = '';
     
     for (let i = 0; i < posters.length; i += COLS_PER_ROW) {
       const rowItems = posters.slice(i, i + COLS_PER_ROW);
-      // 每行独立动画，持续向上滚动（速度减慢）
-      const rowDuration = 120 + Math.floor(i / COLS_PER_ROW) * 20;
-      const rowDelay = -(i / COLS_PER_ROW) * 5;
       
-      html += '<div class="poster-bg-col" style="--flow-duration:' + rowDuration + 's;--flow-delay:' + rowDelay + 's">';
+      html += '<div class="poster-bg-col">';
       rowItems.forEach(item => {
         html += '<div class="poster-bg-item"><img src="/api/poster/' + item.id + '.png" loading="lazy" alt=""></div>';
       });
