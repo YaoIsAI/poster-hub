@@ -404,18 +404,21 @@ async function loadPosterBg() {
     const containerWidth = window.innerWidth - 40;
     const cols = Math.max(2, Math.min(6, Math.floor(containerWidth / (ITEM_WIDTH + GAP))));
     
-    // 将海报分配到各列（瀑布流效果）
+    // 真正的瀑布流：分配到最短的列
+    const colHeights = Array(cols).fill(0);
     const columns = Array.from({ length: cols }, () => []);
-    posters.forEach((p, i) => {
-      columns[i % cols].push(p);
+    
+    posters.forEach((p) => {
+      const shortestCol = colHeights.indexOf(Math.min(...colHeights));
+      columns[shortestCol].push(p);
+      colHeights[shortestCol] += 250 + GAP; // 预估高度
     });
     
     let html = '';
     columns.forEach((col, colIdx) => {
       html += '<div class="poster-bg-col">';
-      // 重复内容确保无缝滚动
-      const repeat = 3;
-      for (let r = 0; r < repeat; r++) {
+      // 重复2次确保无缝滚动
+      for (let r = 0; r < 2; r++) {
         col.forEach(p => {
           html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
         });
