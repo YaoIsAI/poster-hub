@@ -30,6 +30,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# 设置 npm 国内镜像源
+RUN npm config set registry https://registry.npmmirror.com
+
 # 复制 package 文件
 COPY package*.json ./
 
