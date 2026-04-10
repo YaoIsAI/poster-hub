@@ -169,16 +169,29 @@ ${customCss ? '用户额外要求：\n' + customCss : '无'}
     }
 
     const data = await response.json();
-    let html = data.choices?.[0]?.message?.content || '';
+    let rawHtml = data.choices?.[0]?.message?.content || '';
     
-    // 提取 HTML
-    const htmlStart = html.indexOf('<');
-    const htmlEnd = html.lastIndexOf('>') + 1;
+    // 提取 HTML - 智能处理 LLM thinking 内容
+    // MiniMax 的 thinking 内容没有标签包裹，直接以 <think> 开头
+    // 策略：找到第一个真正的 HTML 标签开始位置（<style>, <div, <html）
+    const stylePos = rawHtml.indexOf('<style>');
+    const divPos = rawHtml.indexOf('<div ');
+    const htmlPos = rawHtml.indexOf('<html');
+    const doctypePos = rawHtml.indexOf('<!DOCTYPE');
+    
+    // 找最小的有效起始位置
+    const positions = [stylePos, divPos, htmlPos, doctypePos].filter(p => p >= 0);
+    const htmlStart = positions.length > 0 ? Math.min(...positions) : rawHtml.indexOf('<');
+    if (htmlStart > 0) {
+      rawHtml = rawHtml.substring(htmlStart);
+    }
+    
+    const htmlEnd = rawHtml.lastIndexOf('>') + 1;
     if (htmlStart < 0 || htmlEnd <= htmlStart) {
       throw new Error('LLM 返回无效 HTML');
     }
     
-    html = html.substring(htmlStart, htmlEnd);
+    let html = rawHtml.substring(0, htmlEnd);
     
     // 注入响应式 CSS（确保自适应规则生效）
     const responsiveCSS = `
@@ -212,4 +225,80 @@ function getPosterTypes() {
   ];
 }
 
-module.exports = { generateFromPrompt, getPosterTypes };
+function validatePosterStructure(html) {
+  const issues = [];
+  if (!html || typeof html !== 'string') {
+    return { valid: false, issues: ['HTML 为空或无效'] };
+  }
+
+  // 1. 乱码检测：检测连续无意义字符
+  const garbledPattern = /[\u4e00-\u9fa5]{10,}/g;
+  const chineseChars = (html.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const alphaChars = (html.match(/[a-zA-Z]/g) || []).length;
+  const digitChars = (html.match(/[0-9]/g) || []).length;
+  const totalChars = chineseChars + alphaChars + digitChars;
+  // 如果内容中有意义字符占比低于 60%，可能是乱码
+  if (totalChars > 100 && totalChars / html.length < 0.4) {
+    issues.push('检测到乱码或无意义内容');
+  }
+
+  // 2. 内容长度检查
+  if (html.length < 500) {
+    issues.push(`HTML 内容过短 (${html.length} 字符)，可能生成不完整`);
+  }
+  if (html.length > 200000) {
+    issues.push(`HTML 内容过长 (${Math.round(html.length/1000)}K)，可能包含异常`);
+  }
+
+  // 3. 标签完整性检查
+  const tagPairs = [
+    ['<html', '</html>'],
+    ['<head>', '</head>'],
+    ['<body>', '</body>'],
+    ['<style>', '</style>'],
+  ];
+  for (const [open, close] of tagPairs) {
+    const hasOpen = html.includes(open);
+    const hasClose = html.includes(close);
+    if (hasOpen && !hasClose) {
+      issues.push(`标签未闭合: ${open}`);
+    }
+  }
+
+  // 4. 样式存在检查
+  if (!html.includes('<style') && !html.includes('class=')) {
+    issues.push('缺少样式定义');
+  }
+
+  // 5. 关键元素存在检查
+  const essentialElements = [
+    ['.poster', '海报容器'],
+    ['class="hero', '英雄区'],
+  ];
+  for (const [selector, name] of essentialElements) {
+    if (!html.includes(selector)) {
+      issues.push(`缺少关键元素: ${name}`);
+    }
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+    stats: {
+      length: html.length,
+      chineseChars,
+      alphaChars,
+      digitChars
+    }
+  };
+}
+
+/**
+ * Harness 质量检查：HTML 结构完整性验证
+ * - 检查标签是否正确闭合
+ * - 检查是否有乱码
+ * - 检查内容长度是否合理
+ * - 检查样式是否存在
+ */
+
+module.exports = { generateFromPrompt, getPosterTypes, validatePosterStructure };

@@ -1,5 +1,7 @@
 # PosterHub × DESIGN.md 集成方案评估
 
+中文 | [English Summary](#english-summary)
+
 > 评估人：匿名 | 日期：2026-04-07
 
 ---
@@ -212,3 +214,34 @@ Primary: #635BFF bg, white text, 4px radius...
 ```
 
 这种结构非常适合程序解析。
+
+---
+
+## English Summary
+
+### 1. Overview
+This evaluation proposes integrating project `DESIGN.md` directly into PosterHub, so one design spec can drive one brand-aligned poster output.
+
+### 2. Ecosystem Findings
+- `awesome-design-md` provides 58+ reusable design specs.
+- Specs are markdown-based and structured enough for parser-driven token extraction.
+- The approach greatly reduces theme authoring and maintenance cost.
+
+### 3. Technical Plan
+- Add `fetchDesignMd(owner, repo)` to read `DESIGN.md`.
+- Add `parseDesignMd(mdContent)` to extract tokens (color, typography, component hints).
+- Feed parsed `designSpec` into generator as theme override inputs.
+
+### 4. Fallback Strategy
+1. Use project root `DESIGN.md`.
+2. Fall back to matching template from `awesome-design-md`.
+3. Fall back to built-in `detectTheme()`.
+4. Fall back to default `apple-minimal`.
+
+### 5. Effort and Risk
+- Phase 1 estimated effort: 1-2 person-days.
+- Main risks: missing file, markdown format variance, partial token extraction.
+- Mitigation: tolerant parsing and robust fallback chain.
+
+### 6. Conclusion
+The document recommends immediate implementation of the integration path because it has low cost, high leverage, and strong backward compatibility.

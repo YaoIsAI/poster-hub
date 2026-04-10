@@ -1,5 +1,7 @@
 # ARCHITECTURE-FIX.md — 深色主题颜色一致性修复方案
 
+中文 | [English Summary](#english-summary)
+
 > 状态：草案 | 制定者：Architect-MAX | 日期：2026-04-07
 
 ---
@@ -342,3 +344,34 @@ require('fs').writeFileSync('light-test.html', html);
 | **总计** | | **~82 行** | |
 
 > 注：82 行包含注释和空行调整，实际有效代码 ~50 行。
+
+---
+
+## English Summary
+
+This document proposes a dark-theme consistency fix plan and compares three options.
+
+### Root Cause
+- Semantic naming drift (`bgWhite` / `bgGray`) caused confusion in dark mode.
+- Parallel dark-mode override blocks existed in multiple functions.
+- A few hardcoded colors bypassed theme variables.
+
+### Recommended Option
+- **Option A: Semantic variable refactor** (recommended)
+  - Rename to `bgPrimary` / `bgSecondary`
+  - Remove hardcoded background values
+  - Keep one dark-theme override entry point
+
+### Planned Implementation
+- Rename theme keys in `generator.js`
+- Unify dark overrides in `generatePoster()`
+- Replace hardcoded values in `buildCard()` / `buildWorkflow()`
+- Ensure `generateFromConfig()` supports dark-spec overrides consistently
+
+### Validation
+- Generate dark and light test posters
+- Verify component-level color behavior
+- Confirm no regressions in light-theme output
+
+### Outcome
+- A low-risk, architecture-correct path that improves maintainability and visual consistency.

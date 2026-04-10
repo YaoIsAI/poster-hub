@@ -1,5 +1,7 @@
 # PosterHub 海报渲染引擎重构方案 — ARCHITECTURE-v2.md
 
+中文 | [English Summary](#english-summary)
+
 > 制定者：Architect-RED（资深前端架构师）  
 > 日期：2026-04-07  
 > 状态：设计稿，待瑶确认后实施
@@ -704,6 +706,39 @@ Phase 7: DESIGN.md 解析函数 + 集成
 ---
 
 ## 八、向后兼容性承诺
+
+---
+
+## English Summary
+
+This v2 architecture draft proposes refactoring the poster rendering engine from string-heavy template assembly into a componentized semantic-token system.
+
+### Key Diagnosis
+- Existing code mixed hardcoded colors and ad-hoc overrides.
+- Dark theme rendering was inconsistent across Hero, cards, dividers, and stats.
+- Theme overrides were scattered in multiple entry points.
+
+### Core Direction
+- Introduce a 3-layer architecture:
+  1. Primitive theme tokens
+  2. Semantic tokens (`--hero-bg`, `--stat-num-color`, etc.)
+  3. Components (Hero/Stats/Sections/Cards/Footer) that only consume semantic tokens
+
+### Main Proposed Changes
+- Add `resolveTokens()` and `buildCSSVars()`.
+- Remove hardcoded card/workflow backgrounds.
+- Inject CSS variables in `generatePoster()` at a single source of truth.
+- Unify dark-mode handling at rendering entry.
+
+### DESIGN.md Integration
+- Parse design specs into color/mode/font signals.
+- Apply deterministic fallback sequence for missing specs.
+- Keep backward compatibility with current generation routes.
+
+### Migration and Compatibility
+- Refactor in small, verifiable steps.
+- Preserve output equivalence for light themes during migration.
+- Keep existing API behavior while upgrading internal rendering architecture.
 
 1. **所有现有主题（4个）行为不变** — 浅色海报输出与重构前完全一致
 2. **`generateFromNaturalLanguage()` 返回结构不变** — 字段名、顺序完全兼容

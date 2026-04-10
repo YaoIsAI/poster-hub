@@ -1,5 +1,7 @@
 # PosterHub 新一代海报渲染引擎 — 架构设计文档
 
+中文 | [English Summary](#english-summary)
+
 > **制定者：** Architect-TEAM  
 > **日期：** 2026-04-07  
 > **目标：** 让 58 套 VoltAgent/awesome-design-md 设计规范注入后，生成对应品牌风格的海报（N 种风格，非深色/浅色二选一）  
@@ -1351,3 +1353,46 @@ border-color: var(--section-rule)
 
 *文档版本：v1.0 | Architect-TEAM | 2026-04-07*
 *此文档是 PosterHub 的核心架构依据，每次重构需对照验收标准检验。*
+
+---
+
+## English Summary
+
+This final architecture document defines the next-generation poster rendering engine for PosterHub with a full semantic-token pipeline and broad DESIGN.md compatibility.
+
+### 1. Root Cause
+- Legacy implementation mixed hardcoded CSS values and partial token overrides.
+- Deep theming was inconsistent across components.
+- DESIGN.md extraction covered too few fields.
+
+### 2. Core Architecture
+- Introduces a 3-layer system:
+  1. Primitive design values
+  2. Semantic tokens (20+ CSS variables)
+  3. Component rendering that only consumes semantic tokens
+
+### 3. Data Model
+- Defines `designSpec`, semantic token schema, and component tree contracts.
+- Supports explicit style inference (`dark/light`) and fallback filling.
+
+### 4. Token Pipeline
+- `extractDesignSpec()` -> parse from DESIGN.md/object
+- `resolveTokens()` -> map primitive values to semantic roles
+- `buildTheme()` -> merge theme defaults + design spec + explicit overrides
+- `generatePoster()` -> render with unified tokens
+
+### 5. Rendering Strategy
+- Components (`Hero`, `Stats`, `Sections`, `Cards`, `Footer`) are token-only.
+- Hardcoded color literals are disallowed.
+- CSS variable injection is centralized.
+
+### 6. Migration Strategy
+- Incremental refactor with acceptance gates.
+- Keep route/API behavior stable while replacing internal rendering implementation.
+- Target wide compatibility with 58+ DESIGN.md templates.
+
+### 7. Acceptance Focus
+- Zero hardcoded style literals in renderer
+- Full component-level dark/light consistency
+- Deterministic token override precedence
+- Backward compatibility and measurable visual parity

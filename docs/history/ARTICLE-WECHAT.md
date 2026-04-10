@@ -1,5 +1,7 @@
 # 一个开源工具，让每个 GitHub 项目都能拥有"设计师级"介绍海报
 
+中文 | [English Summary](#english-summary)
+
 **标签：AI工具 / 开源 / 开发者工具**
 
 ---
@@ -84,3 +86,31 @@ node server.js
 ---
 
 *有收获就点个 Star，算是对开源的一点支持。*
+
+---
+
+## English Summary
+
+This article introduces **PosterHub**, an open-source tool that generates project intro posters from GitHub URLs or local project paths.
+
+### What it solves
+- Developers often need shareable visuals for projects but do not want to spend time in Figma.
+- PosterHub automates this by extracting project info (title, stars, languages, key README details) and generating a structured poster.
+
+### Scope and limitation
+- It is designed for speed and accessibility, not for replacing professional brand design.
+- Best for quick project explainers in social posts, community updates, and developer showcases.
+
+### Technical idea
+- The workflow references the design-spec-as-markdown concept from `awesome-design-md`.
+- It turns project metadata into a visual communication card with AI-assisted layout generation.
+
+### How to use
+1. Clone and install dependencies.
+2. Start `node server.js`.
+3. Open `http://localhost:3008`.
+4. Paste a GitHub URL and generate.
+
+It supports OpenAI-compatible LLM APIs and can be invoked through AI assistants (for example OpenClaw) via natural language commands.
+
+Project URL: https://github.com/YaoIsAI/poster-hub

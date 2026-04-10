@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { parseNaturalLanguage: parseNL } = require('./parser');
 
 // ============================================================
 // 彩虹色谱 — 区分不同功能模块
@@ -640,7 +641,7 @@ function buildCard(item, t, index) {
 
 module.exports = {
   THEMES,
-  parseNaturalLanguage,
+  parseNaturalLanguage: parseNL,  // 使用拆分后的解析器模块
   generateFromNaturalLanguage,
   generateFromConfig,
   generatePoster,

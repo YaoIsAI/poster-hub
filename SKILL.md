@@ -7,6 +7,8 @@ description: Generate AI-powered project poster cards from GitHub URLs or local 
 
 > Generate beautiful HD project posters (780px) from a GitHub URL or local project path.
 
+中文 | [English](#english)
+
 ## 快速使用
 
 ```bash
@@ -25,6 +27,11 @@ node server.js
 "检查这个项目并生成海报"
 ```
 
+**给 OpenClaw 的最简描述（直接复制）：**
+```text
+学习 https://raw.githubusercontent.com/YaoIsAI/poster-hub/main/SKILL.md，并在我说“生成项目海报”时自动调用它。
+```
+
 ---
 
 ## 🏗️ 系统架构
@@ -38,7 +45,7 @@ GitHub URL / 本地路径
        ↓
   LLM 驱动自适应 CSS 生成
        ↓
-  Playwright 截图 → PNG 海报
+  puppeteer-core 截图 → PNG 海报
 ```
 
 ### 设计系统（VoltAgent awesome-design-md）
@@ -50,7 +57,7 @@ GitHub URL / 本地路径
 - 按项目名称/描述匹配
 - 深色主题会被自动反转为浅色主题
 
-**内置轻量模板：** Apple 极简 / 深色科技 / 赛博朋克 / Python 官方 / 库存管理
+**内置轻量模板：** apple-minimal / warm-earth / tech-blue / creative
 
 ### LLM 驱动
 
@@ -113,13 +120,26 @@ curl -X POST http://localhost:3008/api/prompt \
 **/api/generate:**
 - `nl`: GitHub URL / 本地路径 / 项目描述
 - `lang`: "zh"（默认）或 "en"
-- `theme`: "apple" / "dark" / "cyber" / "cpython" / "inventory"
+- `inputType`: "url"（默认）或 "browse"
 
 **/api/prompt:**
 - `prompt`: 海报内容描述（必须）
 - `type`: 海报类型（wechat/xiaohongshu/performance/corporate/custom）
 - `lang`: "zh" 或 "en"
 - `width`: 海报宽度（默认 780px）
+- `height`: 海报高度（可选，用于固定比例）
+- 内部闭环：规划(JSON) -> 生成(HTML) -> 审查 -> 自动纠偏(最多3轮) -> PNG导出
+
+**设置相关 API（用于 web/settings.html）：**
+- `GET /api/settings`
+- `POST /api/settings`
+- `POST /api/settings/test`
+- `GET /api/models`
+- `GET /api/progress/:progressId`（查询真实进度阶段）
+
+**调用建议：**
+- 默认项目分析海报：优先 `/api/generate`
+- 用户指定风格类型（wechat/xiaohongshu/performance/corporate/custom）：使用 `/api/prompt`
 
 ---
 
@@ -163,6 +183,20 @@ curl -X POST http://localhost:3008/api/prompt \
 - 用户说"帮我生成海报" → 尝试在桌面或工作目录找项目
 - 用户说中文/英文 → 自动设置 lang 参数
 
+## 首次使用主动引导（非常重要）
+
+AI 助手在首次使用本技能时，应主动执行以下引导：
+
+1. 先确认服务状态：`GET /health` 或提示用户启动 `node server.js`
+2. 引导用户打开设置页：`http://localhost:3008/web/settings.html`
+3. 引导配置并检查：
+   - `LLM_BASE_URL`
+   - `LLM_MODEL`
+   - `LLM_API_KEY`（Ollama 可填 `ollama`）
+4. 调用 `POST /api/settings/test` 检查连通性
+5. 如果是 GitHub 项目分析场景，建议用户配置 `GITHUB_TOKEN`
+6. 若检测失败，返回明确错误（如端口不通、模型名不存在），并提供下一步修复建议
+
 **本地项目示例：**
 ```
 用户: "帮我生成 ~/Desktop/openclaw/projects/inventory-management 的海报"
@@ -173,6 +207,163 @@ AI:
   4. 调用 generateAdaptiveCSS() 生成海报
   5. 返回海报下载链接
 ```
+
+## License
+
+MIT
+
+---
+
+## English
+
+## Quick Start
+
+```bash
+git clone https://github.com/YaoIsAI/poster-hub.git
+cd poster-hub
+npm install
+npx @sparticuz/chromium install
+node server.js
+# Server runs at http://localhost:3008
+```
+
+**Tell your AI:**
+```text
+"Generate a poster for facebook/react"
+"Create a poster for ~/my-project"
+"Analyze this project and generate a poster"
+```
+
+**Minimal OpenClaw prompt (copy-paste):**
+```text
+Learn https://raw.githubusercontent.com/YaoIsAI/poster-hub/main/SKILL.md and auto-call it whenever I ask for a project poster.
+```
+
+---
+
+## 🏗️ System Architecture
+
+```text
+GitHub URL / Local path
+       ↓
+Fetch project info from GitHub API
+       ↓
+Match VoltAgent DESIGN.md spec (auto)
+       ↓
+LLM-driven adaptive CSS generation
+       ↓
+puppeteer-core screenshot -> PNG
+```
+
+### Design System (VoltAgent awesome-design-md)
+
+PosterHub can match templates from [VoltAgent/awesome-design-md](https://github.com/VoltAgent/awesome-design-md).
+
+**Matching rules**
+- Match by tech-stack keywords
+- Match by project name/description
+- Dark templates can be inverted when needed
+
+**Built-in fallback templates**
+- `apple-minimal` / `warm-earth` / `tech-blue` / `creative`
+
+### LLM-driven adaptive layout
+
+LLM computes adaptive style based on content length:
+- title typography (responsive clamp)
+- card/grid wrapping
+- text overflow behavior
+- key metric typography
+
+Supports OpenAI-compatible APIs (DeepSeek, OpenAI, Qwen, SiliconFlow, MiniMax, Ollama).
+
+---
+
+## Configuration
+
+```bash
+cp .env.example .env
+# Edit .env values
+```
+
+| Env | Description | Default |
+|-----|-------------|---------|
+| `LLM_API_KEY` | OpenAI-compatible API key (or `ollama`) | none |
+| `LLM_BASE_URL` | LLM API endpoint | MiniMax |
+| `LLM_MODEL` | Model name | MiniMax-M2.1 |
+| `GITHUB_TOKEN` | GitHub token for higher rate limit | none |
+| `PORT` | Server port | 3008 |
+
+---
+
+## API
+
+```bash
+# Project poster generation (GitHub / local project)
+curl -X POST http://localhost:3008/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"nl": "https://github.com/facebook/react", "lang": "en"}'
+
+# Generic style-based poster generation
+curl -X POST http://localhost:3008/api/prompt \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Create a WeChat style promo poster for an AI project", "type": "wechat", "lang": "en"}'
+```
+
+**Parameters**
+- `/api/generate`: `nl`, `lang`, `inputType`
+- `/api/prompt`: `prompt`, `type`, `lang`, `width`
+- `/api/progress/:progressId`: read backend real-time stage
+
+**Routing recommendation**
+- Use `/api/generate` for project analysis posters
+- Use `/api/prompt` when user explicitly asks for a poster type/style
+
+---
+
+## 🌳 Local Project Input Flow
+
+When user input is a local path:
+
+```text
+1. autoDetectLocal() -> detect project type
+2. scanProjectDir() -> read key files + structure
+3. analyzeWithLLM() -> derive title/description/tech stack/modules
+4. generateAdaptiveCSS() -> build adaptive poster
+```
+
+**Note**
+- Local project quality depends on `LLM_API_KEY`
+- Without LLM key, it falls back to lightweight README extraction
+
+---
+
+## Instructions for AI Assistants
+
+After learning this skill:
+1. Start service: `cd poster-hub && node server.js`
+2. Call API: `POST /api/generate` (or `/api/prompt` for explicit styles)
+3. Return poster URL: `GET /api/poster/:posterId.png`
+4. Proactively inform user that poster is ready
+
+Handle vague input:
+- "this project" -> infer current workspace
+- "generate a poster" -> try nearby project folders
+- Chinese/English input -> set `lang` automatically
+
+## First-Run Proactive Onboarding (Required)
+
+On first use, the AI assistant should proactively:
+
+1. Check service availability (`GET /health`) or ask user to run `node server.js`
+2. Ask user to open `http://localhost:3008/web/settings.html`
+3. Guide configuration for:
+   - `LLM_BASE_URL`
+   - `LLM_MODEL`
+   - `LLM_API_KEY` (`ollama` is acceptable for Ollama)
+4. Run `POST /api/settings/test` for connectivity
+5. Recommend `GITHUB_TOKEN` for GitHub API-heavy use cases
+6. If failed, return actionable diagnostics (unreachable host, wrong model, auth issue) and next-step fix
 
 ## License
 

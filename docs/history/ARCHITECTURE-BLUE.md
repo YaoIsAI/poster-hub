@@ -1,5 +1,7 @@
 # ARCHITECTURE-BLUE.md — 深色主题最小可行方案
 
+中文 | [English Summary](#english-summary)
+
 > 身份：Architect-BLUE（冷静分析派）| 审查对象：ARCHITECTURE-FIX.md
 > 日期：2026-04-07
 
@@ -189,3 +191,30 @@ console.log('Total changes:', 21, 'lines');
 | 风险 | ✅ 低 | 纯Bug修复+去重，无新增逻辑 |
 
 **最终结论**：采纳 BLUE 的 2 点方案，不采纳 RED 的 8 点方案。RED 对问题方向的判断有价值，但具体改动清单因基于旧版代码而过度。
+
+---
+
+## English Summary
+
+This review argues that the previous large refactor proposal overestimated required changes because part of the codebase had already been fixed.
+
+### Main Judgement
+- Several previously reported hardcoded-color issues were already resolved.
+- The current codebase still had two real issues:
+  1. Incorrect variable mapping for non-dark designSpec overrides
+  2. Duplicated dark-mode logic in multiple generation paths
+
+### Proposed Minimal Fix
+- Fix `bgGray/bgWhite` mapping to `bgSecondary/bgPrimary`
+- Remove duplicated deep override block in `generateFromNaturalLanguage()`
+- Keep dark-mode resolution centralized in `generatePoster()`
+
+### Why this approach
+- Small patch surface
+- Lower regression risk
+- Better maintainability through single-source dark-mode logic
+
+### Validation
+- Test non-dark designSpec override behavior
+- Test dark-mode rendering consistency
+- Confirm output remains stable with minimal line changes

@@ -15,7 +15,7 @@ const { existsSync } = require('fs');
 const { execSync } = require('child_process');
 const puppeteer = require('puppeteer-core');
 
-const PAGE_WIDTH = 780; // 海报固定宽度
+const PAGE_WIDTH = 780; // 默认海报宽度
 const MAX_HEIGHT = 5000; // 安全上限
 
 /**
@@ -167,7 +167,9 @@ async function measurePosterHeight(page) {
  * @param {string} outputPath - PNG 输出路径
  * @returns {Promise<string>} - 输出文件路径
  */
-async function hiresPoster(htmlPath, outputPath) {
+async function hiresPoster(htmlPath, outputPath, options = {}) {
+  const targetWidth = Math.max(320, Number(options.width) || PAGE_WIDTH);
+  const fixedHeight = options.height ? Math.min(Math.max(200, Number(options.height)), MAX_HEIGHT) : null;
   const executablePath = await findChromium();
 
   const browser = await puppeteer.launch({
@@ -188,8 +190,8 @@ async function hiresPoster(htmlPath, outputPath) {
 
   // 设置固定宽度（与海报 max-width 一致），高度设大一些让内容自然撑开
   await page.setViewport({
-    width: PAGE_WIDTH,
-    height: 2000,
+    width: targetWidth,
+    height: fixedHeight || 2000,
     deviceScaleFactor: 1,
   });
 
@@ -210,16 +212,21 @@ async function hiresPoster(htmlPath, outputPath) {
   // 再等一小段时间确保渲染稳定
   await new Promise(r => setTimeout(r, 500));
 
-  // 测量内容高度
-  const contentHeight = await measurePosterHeight(page);
-  console.log(`📐 最终截图高度: ${contentHeight}px`);
+  let contentHeight = fixedHeight;
+  if (!contentHeight) {
+    // 自适应高度（历史行为）
+    contentHeight = await measurePosterHeight(page);
+    console.log(`📐 最终截图高度: ${contentHeight}px`);
 
-  // 重新设置视口（高度=内容高度，避免底部留白）
-  await page.setViewport({
-    width: PAGE_WIDTH,
-    height: contentHeight,
-    deviceScaleFactor: 1,
-  });
+    // 重新设置视口（高度=内容高度，避免底部留白）
+    await page.setViewport({
+      width: targetWidth,
+      height: contentHeight,
+      deviceScaleFactor: 1,
+    });
+  } else {
+    console.log(`📐 固定尺寸截图: ${targetWidth}×${contentHeight}px`);
+  }
 
   // 等渲染稳定
   await new Promise(r => setTimeout(r, 300));
@@ -230,14 +237,14 @@ async function hiresPoster(htmlPath, outputPath) {
     clip: {
       x: 0,
       y: 0,
-      width: PAGE_WIDTH,
+      width: targetWidth,
       height: contentHeight,
     },
     type: 'png',
   });
 
   await browser.close();
-  console.log(`✅ 高清截图: ${PAGE_WIDTH}×${contentHeight} → ${path.basename(outputPath)}`);
+  console.log(`✅ 高清截图: ${targetWidth}×${contentHeight} → ${path.basename(outputPath)}`);
   return outputPath;
 }
 
