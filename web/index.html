@@ -18,7 +18,7 @@
     #posterBgInner {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
       padding: 0 20px;
       align-items: center;
       animation: posterFlowUp 180s linear infinite;
@@ -26,10 +26,10 @@
     }
     .poster-bg-col {
       width: 100%;
-      max-width: 1150px;
+      max-width: 1180px;
       display: flex;
       flex-wrap: wrap;
-      gap: 16px;
+      gap: 12px;
       justify-content: center;
     }
     @keyframes posterFlowUp {
@@ -65,12 +65,14 @@
       backdrop-filter: blur(1px);
     }
     @media (max-width: 1024px) {
-      #posterBgInner { gap: 14px; }
-      .poster-bg-item img { width: 160px; }
+      #posterBgInner { gap: 10px; }
+      .poster-bg-col { max-width: 980px; gap: 10px; }
+      .poster-bg-item img { width: 150px; }
     }
     @media (max-width: 768px) {
-      #posterBgInner { gap: 12px; justify-content: flex-start; }
-      .poster-bg-item img { width: 140px; }
+      #posterBgInner { gap: 8px; padding: 0 10px; }
+      .poster-bg-col { max-width: 660px; gap: 8px; }
+      .poster-bg-item img { width: 100px; }
       .poster-bg-item { opacity: 0.5; }
     }
   </style>
