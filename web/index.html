@@ -16,34 +16,26 @@
       opacity: 0.64;
     }
     #posterBgInner {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(6, 180px);
       gap: 12px;
       padding: 0 20px;
-      align-items: center;
+      justify-content: center;
       animation: posterFlowUp 180s linear infinite;
       overflow: hidden;
     }
-    .poster-bg-col {
-      width: 100%;
-      max-width: 1180px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: center;
-      align-items: flex-start;
-    }
     @keyframes posterFlowUp {
       0% { transform: translateY(0); }
-      100% { transform: translateY(-100%); }
+      100% { transform: translateY(-50%); }
+    }
+    .poster-bg-col {
+      display: none;
     }
     .poster-bg-item {
       border-radius: 8px;
       overflow: hidden;
       opacity: 0.6;
-      transform: translateZ(0);
       background: #f0f0f0;
-      flex: 0 0 auto;
     }
     .poster-bg-item img {
       width: 180px;
@@ -51,7 +43,6 @@
       display: block;
       border-radius: 8px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.12);
-      image-rendering: -webkit-optimize-contrast;
     }
     /* 主内容层 */
     body > * { position: relative; z-index: 1; }
@@ -395,21 +386,14 @@ async function loadPosterBg() {
     if (!data.posters || data.posters.length === 0) return;
     
     const inner = document.getElementById('posterBgInner');
-    const posters = data.posters.slice(0, 30); // 获取足够多的海报
+    const posters = data.posters.slice(0, 30);
     
-    // 每行6个海报，横向排列换行
+    // 每行6个海报
     const COLS_PER_ROW = 6;
     let html = '';
     
     posters.forEach((p, i) => {
-      // 每6个创建一行
-      if (i % COLS_PER_ROW === 0) {
-        html += '<div class="poster-bg-col">';
-      }
       html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
-      if ((i + 1) % COLS_PER_ROW === 0 || i === posters.length - 1) {
-        html += '</div>';
-      }
     });
     
     inner.innerHTML = html;
