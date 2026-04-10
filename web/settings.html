@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PosterHub — 设置</title>
+  <link rel="stylesheet" href="/web/css/style.css">
+  <style>
+    .settings-main { max-width: 860px; margin: 0 auto; padding: 36px 20px 56px; width: 100%; }
+    .settings-title { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+    .settings-desc { color: #666; margin-bottom: 24px; }
+    .settings-card { background: #fff; border: 1px solid #eee; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+    .settings-card h2 { font-size: 17px; margin-bottom: 6px; }
+    .settings-card p { color: #777; font-size: 13px; margin-bottom: 14px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 13px; color: #444; margin-bottom: 6px; }
+    .field input,
+    .field select {
+      width: 100%;
+      height: 42px;
+      border: 1px solid #dcdcdc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+      background: #fff;
+      line-height: 20px;
+    }
+    .field input:focus, .field select:focus { border-color: #8B7355; box-shadow: 0 0 0 3px rgba(139, 115, 85, 0.08); }
+    .btn-small { margin-top: 10px; border: 1px solid #ddd; background: #fff; color: #555; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+    .btn-small:hover { background: #f7f7f7; }
+    .hint { color: #888; font-size: 12px; margin-top: 6px; }
+    .status-row { font-size: 12px; color: #666; margin-top: 4px; }
+    .danger-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .danger-row input { width: auto; }
+    .actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+    .save-btn { border: none; background: #8B7355; color: #fff; border-radius: 999px; padding: 10px 18px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .save-btn:hover { background: #7a6548; }
+    .save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .test-btn { border: 1px solid #d8cec1; background: #fff; color: #6f5a43; border-radius: 999px; padding: 10px 16px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .test-btn:hover { background: #f9f6f2; }
+    .test-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .msg { font-size: 13px; }
+    .msg.ok { color: #137333; }
+    .msg.err { color: #b3261e; }
+    .msg.info { color: #0b57d0; }
+    /* Tab 布局 */
+    .tabs { display: flex; border-bottom: 1px solid #eee; margin-bottom: 16px; }
+    .tab-btn { background: none; border: none; padding: 10px 16px; font-size: 14px; color: #666; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab-btn.active { color: #8B7355; border-bottom-color: #8B7355; font-weight: 600; }
+    .tab-btn:hover { color: #8B7355; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+<nav class="nav">
+  <a href="/web/index.html" class="nav-brand">PosterHub</a>
+  <div class="nav-right">
+    <div class="lang-switch-nav" id="langSwitch">
+      <button class="lang-nav-btn active" data-lang="zh" onclick="setLang('zh')">中文</button>
+      <span class="lang-div">|</span>
+      <button class="lang-nav-btn" data-lang="en" onclick="setLang('en')">EN</button>
+    </div>
+    <a href="/web/index.html" class="nav-link" data-i18n="nav.generator">生成器</a>
+    <a href="/web/gallery.html" class="nav-link" data-i18n="nav.gallery">画廊</a>
+    <a href="/web/settings.html" class="nav-link" data-i18n="nav.settings">设置</a>
+  </div>
+</nav>
+
+<main class="settings-main">
+  <h1 class="settings-title" data-i18n="settings.title">设置</h1>
+  <div class="settings-desc" data-i18n="settings.desc">配置 LLM Key 和模型参数，保存后立即生效。</div>
+
+  <!-- Tab 导航 -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="llm" onclick="switchTab('llm')">LLM 配置</button>
+    <button class="tab-btn" data-tab="github" onclick="switchTab('github')">GitHub Token</button>
+  </div>
+
+  <!-- Tab 内容 -->
+  <div id="tab-llm" class="tab-content active">
+  <section class="settings-card">
+    <h2 data-i18n="section.llm">LLM 配置</h2>
+    <p data-i18n="section.llm.desc">用于本地项目分析和通用海报生成（/api/prompt）。</p>
+
+    <div class="field">
+      <label for="llmApiKey" data-i18n="field.llmKey">LLM API Key</label>
+      <input id="llmApiKey" type="password" autocomplete="off" placeholder="sk-..." />
+      <div class="status-row" id="llmStatus"></div>
+      <div class="danger-row">
+        <input id="clearLlmKey" type="checkbox" />
+        <label for="clearLlmKey" data-i18n="field.clearLlm">清空当前 LLM Key</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="llmBaseUrl" data-i18n="field.baseUrl">LLM Base URL</label>
+      <input id="llmBaseUrl" type="text" placeholder="https://api.openai.com/v1" />
+    </div>
+
+    <div class="field">
+      <label for="llmModelSelect" data-i18n="field.model">LLM Model</label>
+      <select id="llmModelSelect"><option value="">-- 选择模型 --</option></select>
+      <button id="refreshModelsBtn" type="button" class="btn-small" onclick="loadModels()" data-i18n="btn.refresh">🔄 刷新</button>
+      <div class="hint" data-i18n="field.modelHint">点击「刷新」获取本地模型列表</div>
+      <div class="status-row" id="modelStatus"></div>
+    </div>
+  </section>
+  </div>
+
+  <!-- GitHub Tab -->
+  <div id="tab-github" class="tab-content">
+  <section class="settings-card">
+    <h2 data-i18n="section.github">GitHub Token（可选）</h2>
+    <p data-i18n="section.github.desc">配置后可提升 GitHub API 速率限制。</p>
+
+    <div class="field">
+      <label for="githubToken" data-i18n="field.github">GitHub Token</label>
+      <input id="githubToken" type="password" autocomplete="off" placeholder="ghp_..." />
+      <div class="status-row" id="githubStatus"></div>
+      <div class="danger-row">
+        <input id="clearGithubToken" type="checkbox" />
+        <label for="clearGithubToken" data-i18n="field.clearGithub">清空当前 GitHub Token</label>
+      </div>
+    </div>
+  </section>
+  </div>
+  </div>
+
+  <div class="actions">
+    <button id="testBtn" class="test-btn" onclick="testLlmConnectivity()" data-i18n="btn.test">测试 LLM 连通性</button>
+    <button id="saveBtn" class="save-btn" onclick="saveSettings()" data-i18n="btn.save">保存设置</button>
+    <span id="msg" class="msg"></span>
+  </div>
+  <div class="status-row" id="testResult"></div>
+</main>
+
+<script>
+const I18N = {
+  zh: {
+    'nav.generator': '生成器',
+    'nav.gallery': '画廊',
+    'nav.settings': '设置',
+    'settings.title': '设置',
+    'settings.desc': '配置 LLM Key 和模型参数，保存后立即生效。',
+    'section.llm': 'LLM 配置',
+    'section.llm.desc': '用于本地项目分析和通用海报生成（/api/prompt）。',
+    'section.github': 'GitHub Token（可选）',
+    'section.github.desc': '配置后可提升 GitHub API 速率限制。',
+    'field.llmKey': 'LLM API Key',
+    'field.baseUrl': 'LLM Base URL',
+    'field.model': 'LLM Model',
+    'field.modelHint': '可手动输入模型名，点击「刷新」可获取本地模型列表建议',
+    'field.keepEmpty': '留空表示保持当前值不变。',
+    'field.clearLlm': '清空当前 LLM Key',
+    'field.github': 'GitHub Token',
+    'field.clearGithub': '清空当前 GitHub Token',
+    'btn.test': '测试 LLM 连通性',
+    'btn.refresh': '刷新',
+    'btn.testing': '测试中...',
+    'btn.save': '保存设置',
+    'btn.saving': '保存中...',
+    'status.empty': '未配置',
+    'status.masked': '已配置：',
+    'msg.saved': '设置已保存',
+    'msg.loadFail': '读取设置失败',
+    'msg.saveFail': '保存失败',
+    'msg.testFail': '连通性测试失败'
+  },
+  en: {
+    'nav.generator': 'Generator',
+    'nav.gallery': 'Gallery',
+    'nav.settings': 'Settings',
+    'settings.title': 'Settings',
+    'settings.desc': 'Configure LLM key and model parameters. Changes apply immediately.',
+    'section.llm': 'LLM Settings',
+    'section.llm.desc': 'Used by local project analysis and /api/prompt generation.',
+    'section.github': 'GitHub Token (Optional)',
+    'section.github.desc': 'Improves GitHub API rate limits.',
+    'field.llmKey': 'LLM API Key',
+    'field.baseUrl': 'LLM Base URL',
+    'field.model': 'LLM Model',
+    'field.modelHint': 'You can type model name manually, click refresh to load local suggestions',
+    'field.keepEmpty': 'Leave empty to keep current value unchanged.',
+    'field.clearLlm': 'Clear current LLM key',
+    'field.github': 'GitHub Token',
+    'field.clearGithub': 'Clear current GitHub token',
+    'btn.test': 'Test LLM Connectivity',
+    'btn.refresh': 'Refresh',
+    'btn.testing': 'Testing...',
+    'btn.save': 'Save Settings',
+    'btn.saving': 'Saving...',
+    'status.empty': 'Not configured',
+    'status.masked': 'Configured:',
+    'msg.saved': 'Settings saved',
+    'msg.loadFail': 'Failed to load settings',
+    'msg.saveFail': 'Failed to save settings',
+    'msg.testFail': 'Connectivity test failed'
+  }
+};
+
+let currentLang = 'zh';
+let currentSettings = null;
+
+function t(key) {
+  return (I18N[currentLang] && I18N[currentLang][key]) || key;
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('posterhub-lang', lang);
+  document.querySelectorAll('.lang-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (I18N[lang] && I18N[lang][key]) el.textContent = I18N[lang][key];
+  });
+  renderStatus(currentSettings);
+}
+
+function renderStatus(settings) {
+  const llmStatus = document.getElementById('llmStatus');
+  const githubStatus = document.getElementById('githubStatus');
+  if (!settings) {
+    llmStatus.textContent = '';
+    githubStatus.textContent = '';
+    return;
+  }
+  llmStatus.textContent = settings.hasLlmApiKey
+    ? (t('status.masked') + ' ' + (settings.llmApiKeyMasked || ''))
+    : t('status.empty');
+  githubStatus.textContent = settings.hasGithubToken
+    ? (t('status.masked') + ' ' + (settings.githubTokenMasked || ''))
+    : t('status.empty');
+}
+
+function setMessage(type, text) {
+  const msg = document.getElementById('msg');
+  msg.className = 'msg ' + (type || '');
+  msg.textContent = text || '';
+}
+
+function setTestResult(type, text) {
+  const el = document.getElementById('testResult');
+  el.className = 'status-row msg ' + (type || '');
+  el.textContent = text || '';
+}
+
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch (e) { /* ignore */ }
+    if (!res.ok) {
+      const errMsg = (data && data.error) ? data.error : ('HTTP ' + res.status + ' ' + raw.slice(0, 120));
+      throw new Error(errMsg);
+    }
+    if (!data) throw new Error('响应不是 JSON');
+    if (!data.ok) throw new Error(data.error || 'load failed');
+    currentSettings = data.settings || {};
+    document.getElementById('llmBaseUrl').value = currentSettings.llmBaseUrl || '';
+    
+    // 自动加载模型列表（会设置 select 的值）
+    await loadModels();
+    
+    renderStatus(currentSettings);
+  } catch (e) {
+    const detail = String(e.message || '');
+    const needRestart = detail.includes('404') || detail.includes('Not Found');
+    const tail = needRestart ? '（请重启 `node server.js` 使 /api/settings 生效）' : '';
+    setMessage('err', t('msg.loadFail') + ': ' + detail + tail);
+  }
+}
+
+// 自动加载模型列表
+async function loadModels() {
+  const select = document.getElementById('llmModelSelect');
+  const statusEl = document.getElementById('modelStatus');
+  const refreshBtn = document.getElementById('refreshModelsBtn');
+  const currentModel = (select.value || currentSettings?.llmModel || '').trim();
+  const llmBaseUrl = document.getElementById('llmBaseUrl').value.trim();
+  const llmApiKey = document.getElementById('llmApiKey').value.trim();
+  const baseUrl = llmBaseUrl || (currentSettings?.llmBaseUrl || '');
+  const apiKey = llmApiKey || '';
+  try {
+    if (statusEl) { statusEl.className = 'status-row msg info'; statusEl.textContent = currentLang === 'zh' ? '正在加载模型列表...' : 'Loading models...'; }
+    if (refreshBtn) refreshBtn.disabled = true;
+    const q = new URLSearchParams();
+    if (baseUrl) q.set('baseUrl', baseUrl);
+    if (apiKey) q.set('apiKey', apiKey);
+    const url = '/api/models?' + q.toString();
+    const res = await fetch(url);
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch (e) { /* ignore */ }
+    if (!res.ok || !data) {
+      const errMsg = (data && data.error) ? data.error : ('HTTP ' + res.status + ' ' + raw.slice(0, 160));
+      throw new Error(errMsg);
+    }
+
+    const models = Array.from(new Set((data.models || []).filter(Boolean)));
+    if (!data.ok || models.length === 0) {
+      select.innerHTML = '<option value="">-- 无模型 --</option>';
+      if (statusEl) {
+        const hint = data.message || (currentLang === 'zh' ? '未获取到模型列表（请确认 Base URL 可访问）' : 'No models (check Base URL)');
+        statusEl.className = 'status-row msg err';
+        statusEl.textContent = hint;
+      }
+      return;
+    }
+    
+    // 构建下拉选项，第一个是默认提示
+    select.innerHTML = '<option value="">-- 请选择模型 --</option>' + models.map(m => `<option value="${m}">${m}</option>`).join('');
+    
+    // 恢复之前选中的模型
+    if (currentModel && models.includes(currentModel)) {
+      select.value = currentModel;
+    } else if (models[0]) {
+      select.value = models[0];
+    }
+    
+    console.log('[loadModels] select options:', select.options.length, 'selected:', select.value);
+    if (statusEl) { statusEl.className = 'status-row msg ok'; statusEl.textContent = (currentLang === 'zh' ? '已加载 ' : 'Loaded ') + models.length + ' 个模型'; }
+  } catch (e) {
+    select.innerHTML = '<option value="">-- 加载失败 --</option>';
+    if (statusEl) {
+      statusEl.className = 'status-row msg err';
+      statusEl.textContent = (currentLang === 'zh' ? '加载失败：' : 'Failed: ') + (e.message || String(e));
+    }
+  } finally {
+    if (refreshBtn) refreshBtn.disabled = false;
+  }
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="' + tab + '"]').classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+async function saveSettings() {
+  const btn = document.getElementById('saveBtn');
+  const llmApiKey = document.getElementById('llmApiKey').value.trim();
+  const llmBaseUrl = document.getElementById('llmBaseUrl').value.trim();
+  const llmModel = document.getElementById('llmModelSelect').value.trim();
+  const githubToken = document.getElementById('githubToken').value.trim();
+  const clearLlmKey = document.getElementById('clearLlmKey').checked;
+  const clearGithubToken = document.getElementById('clearGithubToken').checked;
+
+  const payload = {};
+  if (llmApiKey) payload.llmApiKey = llmApiKey;
+  if (llmBaseUrl !== (currentSettings?.llmBaseUrl || '')) payload.llmBaseUrl = llmBaseUrl;
+  if (llmModel !== (currentSettings?.llmModel || '')) payload.llmModel = llmModel;
+  if (githubToken) payload.githubToken = githubToken;
+  if (clearLlmKey) payload.llmApiKey = '';
+  if (clearGithubToken) payload.githubToken = '';
+
+  if (!Object.keys(payload).length) {
+    setMessage('', '');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = t('btn.saving');
+  setMessage('', '');
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch (e) { /* ignore */ }
+    if (!res.ok) {
+      const errMsg = (data && data.error) ? data.error : ('HTTP ' + res.status + ' ' + raw.slice(0, 120));
+      throw new Error(errMsg);
+    }
+    if (!data) throw new Error('响应不是 JSON');
+    if (!data.ok) throw new Error(data.error || 'save failed');
+    currentSettings = data.settings || {};
+    await loadModels();
+    document.getElementById('llmApiKey').value = '';
+    document.getElementById('githubToken').value = '';
+    document.getElementById('clearLlmKey').checked = false;
+    document.getElementById('clearGithubToken').checked = false;
+    renderStatus(currentSettings);
+    setMessage('ok', t('msg.saved'));
+  } catch (e) {
+    setMessage('err', t('msg.saveFail') + ': ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('btn.save');
+  }
+}
+
+async function testLlmConnectivity() {
+  const btn = document.getElementById('testBtn');
+  const llmApiKey = document.getElementById('llmApiKey').value.trim();
+  const llmBaseUrl = document.getElementById('llmBaseUrl').value.trim();
+  const llmModel = document.getElementById('llmModelSelect').value.trim();
+
+  btn.disabled = true;
+  btn.textContent = t('btn.testing');
+  setTestResult('info', '');
+  try {
+    const payload = {
+      llmBaseUrl,
+      llmModel
+    };
+    if (llmApiKey) payload.llmApiKey = llmApiKey;
+
+    const res = await fetch('/api/settings/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch (e) { /* ignore */ }
+    if (!res.ok || !data || !data.ok || !data.test) {
+      throw new Error((data && data.error) || ('HTTP ' + res.status + ' ' + raw.slice(0, 120)));
+    }
+
+    const r = data.test;
+    const preview = Array.isArray(r.modelsPreview) && r.modelsPreview.length
+      ? (' | models: ' + r.modelsPreview.join(', '))
+      : '';
+    const endpoint = r.endpoint ? (' | endpoint: ' + r.endpoint) : '';
+    const count = typeof r.modelCount === 'number' ? (' | count: ' + r.modelCount) : '';
+    const suggested = r.suggestedBaseUrl ? (' | suggested: ' + r.suggestedBaseUrl) : '';
+    const modelHint = (llmModel && r.modelFound === false) ? (currentLang === 'zh' ? '（模型名可能不匹配）' : ' (model not found)') : '';
+    const primary = r.message
+      || ((!llmBaseUrl && !(currentSettings?.llmBaseUrl || '')) ? (currentLang === 'zh' ? '未设置 LLM Base URL' : 'LLM Base URL is empty') : '')
+      || (r.ok && r.reachable ? (currentLang === 'zh' ? '连接成功' : 'Connected') : (r.reachable ? (currentLang === 'zh' ? '请求失败' : 'Request failed') : (currentLang === 'zh' ? '无法连接' : 'Unreachable')));
+    const level = r.ok && r.reachable ? 'ok' : 'err';
+    setTestResult(level, primary + modelHint + count + endpoint + preview + suggested);
+    if (r.suggestedBaseUrl) {
+      document.getElementById('llmBaseUrl').value = r.suggestedBaseUrl;
+      if (r.autoDiscovered) {
+        setMessage('info', currentLang === 'zh' ? '已自动发现可用地址，建议保存设置后重试。' : 'Auto-discovered a working Base URL. Save settings and retry.');
+      }
+    }
+  } catch (e) {
+    setTestResult('err', t('msg.testFail') + ': ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('btn.test');
+  }
+}
+
+(function init() {
+  const saved = localStorage.getItem('posterhub-lang');
+  if (saved === 'zh' || saved === 'en') {
+    setLang(saved);
+  } else {
+    setLang('zh');
+  }
+  loadSettings();
+})();
+</script>
+</body>
+</html>
