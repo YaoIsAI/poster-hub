@@ -17,31 +17,34 @@
     }
     #posterBgInner {
       display: flex;
-      gap: 28px;
+      gap: 20px;
       height: 100%;
-      padding: 0 12px;
-      align-items: stretch;
+      padding: 0 20px;
+      align-items: flex-start;
+      justify-content: center;
+      overflow: hidden;
     }
     .poster-bg-col {
       flex: 0 0 180px;
       width: 180px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 16px;
       will-change: transform;
       animation: posterFlowUp var(--flow-duration, 80s) linear infinite;
       animation-delay: var(--flow-delay, 0s);
       backface-visibility: hidden;
     }
     @keyframes posterFlowUp {
-      0% { transform: translate3d(0, 44%, 0); }
-      100% { transform: translate3d(0, -46%, 0); }
+      0% { transform: translate3d(0, 50%, 0); }
+      100% { transform: translate3d(0, -50%, 0); }
     }
     .poster-bg-item {
       border-radius: 8px;
       overflow: hidden;
       opacity: 0.6;
       transform: translateZ(0);
+      background: #f0f0f0;
     }
     .poster-bg-item img {
       width: 180px;
