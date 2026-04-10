@@ -383,6 +383,18 @@ function setLang(lang) {
   loadPosterBg();
 })();
 
+// Safari 修复：页面重新可见时恢复动画
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    const inner = document.getElementById('posterBgInner');
+    if (inner) {
+      inner.style.animation = 'none';
+      inner.offsetHeight; // 触发重排
+      inner.style.animation = '';
+    }
+  }
+});
+
 async function loadPosterBg() {
   try {
     const res = await fetch('/api/list');
