@@ -23,13 +23,13 @@
       align-items: stretch;
     }
     .poster-bg-col {
-      flex: 1;
-      min-width: 0;
+      flex: 0 0 180px;
+      width: 180px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
       will-change: transform;
-      animation: posterFlowUp var(--flow-duration, 76s) linear infinite;
+      animation: posterFlowUp var(--flow-duration, 80s) linear infinite;
       animation-delay: var(--flow-delay, 0s);
       backface-visibility: hidden;
     }
@@ -40,11 +40,12 @@
     .poster-bg-item {
       border-radius: 8px;
       overflow: hidden;
-      opacity: 0.55;
+      opacity: 0.6;
       transform: translateZ(0);
     }
     .poster-bg-item img {
-      width: 100%;
+      width: 180px;
+      height: auto;
       display: block;
       border-radius: 8px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.12);
@@ -390,9 +391,9 @@ async function loadPosterBg() {
     
     const inner = document.getElementById('posterBgInner');
     const posters = data.posters.slice(0, 18);
-    // 根据海报原始宽度（780px）计算列数
-    const posterWidth = 780;
-    const cols = Math.max(2, Math.min(4, Math.ceil((window.innerWidth || 1200) / posterWidth)));
+    // 根据海报宽度（180px）计算列数
+    const posterWidth = 180;
+    const cols = Math.max(2, Math.min(6, Math.ceil((window.innerWidth || 1200) / posterWidth)));
     const columns = Array.from({ length: cols }, () => []);
 
     // 横向分发，再在每列重复，形成无缝向上滚动
