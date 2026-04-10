@@ -21,6 +21,7 @@
       gap: 16px;
       padding: 0 20px;
       align-items: center;
+      animation: posterFlowUp 180s linear infinite;
       overflow: hidden;
     }
     .poster-bg-col {
@@ -30,14 +31,10 @@
       flex-wrap: wrap;
       gap: 16px;
       justify-content: center;
-      will-change: transform;
-      animation: posterFlowUp var(--flow-duration, 120s) linear infinite;
-      animation-delay: var(--flow-delay, 0s);
-      backface-visibility: hidden;
     }
     @keyframes posterFlowUp {
-      0% { transform: translate3d(0, 0, 0); }
-      100% { transform: translate3d(0, -100%, 0); }
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-100%); }
     }
     .poster-bg-item {
       border-radius: 8px;
@@ -395,21 +392,22 @@ async function loadPosterBg() {
     if (!data.posters || data.posters.length === 0) return;
     
     const inner = document.getElementById('posterBgInner');
-    const posters = data.posters.slice(0, 18);
+    const posters = data.posters.slice(0, 30); // 获取足够多的海报
     
-    // 横向排列，每行6个
+    // 每行6个海报，横向排列换行
     const COLS_PER_ROW = 6;
     let html = '';
     
-    for (let i = 0; i < posters.length; i += COLS_PER_ROW) {
-      const rowItems = posters.slice(i, i + COLS_PER_ROW);
-      
-      html += '<div class="poster-bg-col">';
-      rowItems.forEach(item => {
-        html += '<div class="poster-bg-item"><img src="/api/poster/' + item.id + '.png" loading="lazy" alt=""></div>';
-      });
-      html += '</div>';
-    }
+    posters.forEach((p, i) => {
+      // 每6个创建一行
+      if (i % COLS_PER_ROW === 0) {
+        html += '<div class="poster-bg-col">';
+      }
+      html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
+      if ((i + 1) % COLS_PER_ROW === 0 || i === posters.length - 1) {
+        html += '</div>';
+      }
+    });
     
     inner.innerHTML = html;
   } catch(e) {
