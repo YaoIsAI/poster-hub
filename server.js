@@ -1,14 +1,15 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
-const { execSync } = require('child_process');
+const os = require('os');
+const { execSync, spawnSync } = require('child_process');
 const { generateFromNaturalLanguage, generateFromConfig, THEMES } = require('./generator');
-const { scanProjectDir, analyzeWithLLM } = require('./local-llm');
+const { scanProjectDir, analyzeWithLLM, analyzeReadmeWithLLM } = require('./local-llm');
 const { hiresPoster } = require('./screenshot');
 const { generateAdaptiveCSS, generateWithLLM } = require('./poster-generator');
-const { generateFromPrompt, getPosterTypes } = require('./prompt-generator');
+const { generateFromPrompt, getPosterTypes, validatePosterStructure } = require('./prompt-generator');
 
 // ═══════════════════════════════════════════
 //  海报生成辅助函数
@@ -571,9 +572,264 @@ function setCors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
+const ENV_FILE_PATH = path.join(__dirname, '.env');
+
+function maskSecret(v) {
+  const s = String(v || '');
+  if (!s) return '';
+  if (s.length <= 8) return '*'.repeat(s.length);
+  return s.slice(0, 4) + '*'.repeat(Math.max(4, s.length - 8)) + s.slice(-4);
+}
+
+function escapeEnvValue(v) {
+  return String(v).replace(/\n/g, '\\n');
+}
+
+function removeEnvKey(raw, key) {
+  const keyRe = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const reg = new RegExp('^' + keyRe + '=.*\\n?', 'm');
+  return raw.replace(reg, '');
+}
+
+function upsertEnvKey(raw, key, value) {
+  const keyRe = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const line = key + '=' + escapeEnvValue(value);
+  const reg = new RegExp('^' + keyRe + '=.*$', 'm');
+  if (reg.test(raw)) return raw.replace(reg, line);
+  const suffix = raw && !raw.endsWith('\n') ? '\n' : '';
+  return raw + suffix + line + '\n';
+}
+
+function writeEnvUpdates(updates) {
+  let raw = fs.existsSync(ENV_FILE_PATH) ? fs.readFileSync(ENV_FILE_PATH, 'utf8') : '';
+  for (const [key, value] of Object.entries(updates)) {
+    if (typeof value === 'undefined') continue;
+    if (value === null || value === '') {
+      raw = removeEnvKey(raw, key);
+      delete process.env[key];
+    } else {
+      raw = upsertEnvKey(raw, key, value);
+      process.env[key] = String(value);
+    }
+  }
+  fs.writeFileSync(ENV_FILE_PATH, raw, 'utf8');
+}
+
+function normalizeBaseUrl(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  return s.endsWith('/') ? s.slice(0, -1) : s;
+}
+
+function getModelsEndpoints(baseUrl) {
+  const normalized = normalizeBaseUrl(baseUrl);
+  const isOllama = normalized.includes(':11434');
+  const isMiniMax = normalized.includes('minimaxi');
+  
+  if (!normalized) return [];
+  
+  if (isOllama) {
+    const baseNoV1 = normalized.replace(/\/v1$/, '');
+    const endpoints = [
+      baseNoV1 + '/api/tags',
+      baseNoV1 + '/v1/models',
+      normalized + '/models'
+    ];
+    return Array.from(new Set(endpoints));
+  }
+  
+  // 非 OllAMA: 尝试多个已知端点
+  const endpoints = [
+    normalized + '/models',
+    normalized + '/v1/models',
+    normalized + '/model/list',
+  ];
+  
+  return Array.from(new Set(endpoints));
+}
+
+function extractModelIds(data) {
+  const fromModels = Array.isArray(data?.models)
+    ? data.models.map(m => m.name || m.model || '').filter(Boolean)
+    : [];
+  const fromData = Array.isArray(data?.data)
+    ? data.data.map(m => m.id || m.model || m.name || '').filter(Boolean)
+    : [];
+  return fromModels.length ? fromModels : fromData;
+}
+
+function getLocalIpCandidates() {
+  try {
+    const nets = os.networkInterfaces();
+    const ips = [];
+    for (const addrs of Object.values(nets)) {
+      for (const a of (addrs || [])) {
+        if (!a || a.internal) continue;
+        if (a.family === 'IPv4' && a.address) ips.push(a.address);
+      }
+    }
+    return Array.from(new Set(ips));
+  } catch (e) {
+    return [];
+  }
+}
+
+function getCandidateBaseUrls(baseUrl) {
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized) return [];
+  const candidates = [normalized];
+  if (normalized.includes(':11434')) {
+    if (normalized.endsWith('/v1')) candidates.push(normalized.replace(/\/v1$/, ''));
+    if (!normalized.endsWith('/v1')) candidates.push(normalized + '/v1');
+    candidates.push('http://127.0.0.1:11434/v1');
+    candidates.push('http://localhost:11434/v1');
+    for (const ip of getLocalIpCandidates()) {
+      candidates.push(`http://${ip}:11434/v1`);
+    }
+  }
+  return Array.from(new Set(candidates.map(s => normalizeBaseUrl(s)).filter(Boolean)));
+}
+
+function getJsonWithCurlFallback(endpoint, headers, timeoutMs) {
+  const args = ['-sS', '-m', String(Math.ceil(timeoutMs / 1000)), endpoint];
+  for (const [k, v] of Object.entries(headers || {})) {
+    if (!v) continue;
+    args.push('-H', `${k}: ${v}`);
+  }
+  const cp = spawnSync('curl', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  if (cp.status !== 0) {
+    const stderr = (cp.stderr || cp.error?.message || '').trim();
+    return { ok: false, error: stderr || 'curl failed' };
+  }
+  const stdout = (cp.stdout || '').trim();
+  try {
+    return { ok: true, data: JSON.parse(stdout) };
+  } catch (e) {
+    return { ok: false, error: 'curl 返回非 JSON: ' + stdout.slice(0, 160) };
+  }
+}
+
+async function testLlmConnectivity({ apiKey = '', baseUrl = '', model = '' }) {
+  const LLM_BASE_URL = process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || '';
+  const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || '';
+  const LLM_MODEL = process.env.LLM_MODEL || '';
+  
+  const finalBaseUrl = (baseUrl || LLM_BASE_URL).trim();
+  const finalApiKey = (apiKey || LLM_API_KEY).trim();
+  const finalModel = (model || LLM_MODEL).trim();
+  
+  if (!finalBaseUrl) return { ok: false, reachable: false, message: 'Empty URL', modelCount: 0, modelsPreview: [], modelFound: null, endpoint: '' };
+  if (!/^https?:\/\//i.test(finalBaseUrl)) return { ok: false, reachable: false, message: 'Invalid URL', modelCount: 0, modelsPreview: [], modelFound: null, endpoint: '' };
+  
+  const timeoutMs = 4000;
+  const headers = { 'Content-Type': 'application/json' };
+  if (finalApiKey) headers['Authorization'] = `Bearer ${finalApiKey}`;
+
+  const attempt = async (base) => {
+    const endpoints = getModelsEndpoints(base);
+    const tried = [];
+    for (const endpoint of endpoints) {
+      tried.push(endpoint);
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(endpoint, { method: 'GET', headers, signal: controller.signal });
+        const raw = await res.text();
+        clearTimeout(timer);
+        if (!res.ok) {
+          return { ok: false, reachable: true, message: `HTTP ${res.status}`, modelCount: 0, modelsPreview: [], modelFound: null, endpoint, tried };
+        }
+        const data = JSON.parse(raw);
+        const modelIds = extractModelIds(data);
+        return {
+          ok: true,
+          reachable: true,
+          modelCount: modelIds.length,
+          modelsPreview: modelIds.slice(0, 13),
+          modelFound: finalModel ? modelIds.includes(finalModel) : null,
+          endpoint,
+          tried
+        };
+      } catch (e) {
+        const curl = getJsonWithCurlFallback(endpoint, headers, timeoutMs);
+        if (curl.ok) {
+          const modelIds = extractModelIds(curl.data);
+          return {
+            ok: true,
+            reachable: true,
+            modelCount: modelIds.length,
+            modelsPreview: modelIds.slice(0, 13),
+            modelFound: finalModel ? modelIds.includes(finalModel) : null,
+            endpoint,
+            tried
+          };
+        }
+        return { ok: false, reachable: false, message: `fetch/curl 均失败: ${curl.error || e.message}`, modelCount: 0, modelsPreview: [], modelFound: null, endpoint, tried };
+      }
+    }
+    return { ok: false, reachable: false, message: 'No endpoint', modelCount: 0, modelsPreview: [], modelFound: null, endpoint: '', tried };
+  };
+
+  const first = await attempt(finalBaseUrl);
+  if (first.ok) return first;
+
+  const candidates = getCandidateBaseUrls(finalBaseUrl);
+  for (const cand of candidates) {
+    if (cand === normalizeBaseUrl(finalBaseUrl)) continue;
+    const r = await attempt(cand);
+    if (r.ok) {
+      return { ...r, suggestedBaseUrl: cand, autoDiscovered: true };
+    }
+  }
+
+  // MiniMax 不提供 /models 端点，返回默认模型列表
+  if (finalBaseUrl.includes('minimaxi')) {
+    const defaultModels = [
+      'MiniMax-M2.1',
+      'MiniMax-M2.5',
+      'MiniMax-M2.7',
+      'abab6.5s-chat'
+    ];
+    const found = finalModel ? defaultModels.includes(finalModel) : null;
+    return {
+      ok: true,
+      reachable: true,
+      modelCount: defaultModels.length,
+      modelsPreview: defaultModels,
+      modelFound: found,
+      endpoint: finalBaseUrl + '/models (默认)',
+      tried: []
+    };
+  }
+
+  return first;
+}
+
+// 进度存储
+const progressMap = new Map();
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
+
+  // API: 健康检查
+  if (pathname === '/health' || pathname === '/api/health') {
+    json(res, 200, { status: 'ok', timestamp: new Date().toISOString() });
+    return;
+  }
+
+  // API: 获取进度
+  if (pathname.startsWith('/api/progress/')) {
+    const id = pathname.split('/')[2]?.split('?')[0];
+    const p = progressMap.get(id);
+    if (p) {
+      json(res, 200, { progress: p });
+    } else {
+      json(res, 200, { progress: { stage: 'prepare', model: 'LLM' } });
+    }
+    return;
+  }
+
   const warnings = [];  // 统一警告收集（声明在使用之前）
 
   if (req.method === 'OPTIONS') { setCors(res); res.writeHead(204); res.end(); return; }
@@ -607,10 +863,20 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { nl, lang = 'zh', inputType = 'url' } = JSON.parse(body);
+        const { nl, lang = 'zh', inputType = 'url', _progressId } = JSON.parse(body);
+        
+        // 更新进度辅助函数
+        let updateProgress;
+        const setUpdateProgress = (stage, model) => {
+          if (_progressId) {
+            progressMap.set(_progressId, { stage, model: model || 'LLM', timestamp: Date.now() });
+          }
+        };
+        updateProgress = setUpdateProgress;
+        setUpdateProgress('prepare', '');
+        
         let finalNl = nl;
         let ghData = null;
-        let posterConfig;
 
         // Handle browse (folder selection) - just use the folder name to match local project
         if (inputType === 'browse' && nl) {
@@ -660,26 +926,70 @@ const server = http.createServer(async (req, res) => {
         }
 
         // 构造 finalNl（包含本地项目的 README 信息，供海报生成器解析）
+        let posterConfig = null;
         if (ghData) {
-          finalNl = lang === 'en' ? ghData.nlEn : ghData.nl;
+          // GitHub 项目：用 LLM 分析 README
+          if (ghData.readme || ghData.readmeEn) {
+            updateProgress('llm', process.env.LLM_MODEL || 'gemma4:e4b');
+            console.log('📖 正在分析 GitHub README: ' + ghData.owner + '/' + ghData.name);
+            const readmeToAnalyze = lang === 'en' ? (ghData.readmeEn || ghData.readme) : (ghData.readme || ghData.readmeEn);
+            const llmResult = await analyzeReadmeWithLLM(readmeToAnalyze, ghData.name);
+            updateProgress('promptLlm', process.env.LLM_MODEL || 'gemma4:e4b');
+            const cfg = llmResult && llmResult.config;
+            if (cfg) {
+              // 使用 LLM 分析结果构建海报配置
+              posterConfig = {
+                theme: 'apple-minimal',
+                hero: {
+                  badge: cfg.badge || (ghData.topics && ghData.topics[0]) || (ghData.stars ? '⭐ ' + ghData.stars : 'GitHub 项目'),
+                  title: cfg.title || (ghData.owner + '/' + ghData.name),
+                  subtitle: cfg.description || ghData.desc || ghData.name
+                },
+                sections: (cfg.sections || []).map(sec => ({
+                  label: sec.label,
+                  items: (sec.items || []).map(item => ({
+                    emoji: item.emoji || '📌',
+                    title: item.title,
+                    desc: item.desc || '',
+                    badge: item.badge || '',
+                    color: item.color || '#4A90E2'
+                  }))
+                })),
+                stats: [],
+                footer: {
+                  line1: cfg.footer1 || ghData.desc || 'Powered by PosterHub',
+                  line2: cfg.footer2 || ('github.com/' + ghData.owner + '/' + ghData.name)
+                }
+              };
+              console.log('✅ GitHub README LLM 分析成功: ' + (cfg.features ? cfg.features.length : 0) + ' features');
+            } else {
+              console.log('⚠️ GitHub README LLM 分析失败，回退到基础模式');
+            }
+          }
+          if (!posterConfig) {
+            finalNl = lang === 'en' ? ghData.nlEn : ghData.nl;
+          }
         } else if (localData) {
           // 用 LLM 分析整个项目目录
+          updateProgress('llm', process.env.LLM_MODEL || 'gemma4:e4b');
           console.log('🔍 正在扫描目录: ' + localData.root);
           const scan = scanProjectDir(localData.root);
           console.log('📁 扫描到 ' + scan.files.length + ' 个文件');
           const llmResult = await analyzeWithLLM(localData.root, localData.name, scan);
-          if (llmResult) {
+          updateProgress('promptLlm', process.env.LLM_MODEL || 'gemma4:e4b');
+          const cfg = llmResult && llmResult.config;
+          if (cfg) {
             // 构建海报配置
             let builtConfig = {
               theme: 'apple-minimal',
               hero: {
-                badge: llmResult.badge || '📁 本地项目',
-                title: llmResult.title || localData.name,
-                subtitle: llmResult.description || '本地项目'
+                badge: cfg.badge || '📁 本地项目',
+                title: cfg.title || localData.name,
+                subtitle: cfg.description || '本地项目'
               },
-              sections: (llmResult.sections || []).map(sec => ({
+              sections: (cfg.sections || []).map(sec => ({
                 label: sec.label,
-                items: sec.items.map(item => ({
+                items: (sec.items || []).map(item => ({
                   emoji: item.emoji || '📌',
                   title: item.title,
                   desc: item.desc || '',
@@ -689,14 +999,14 @@ const server = http.createServer(async (req, res) => {
               })),
               stats: [],
               footer: {
-                line1: llmResult.footer1 || 'Powered by PosterHub',
-                line2: llmResult.footer2 || 'AI驱动的项目简介生成器'
+                line1: cfg.footer1 || 'Powered by PosterHub',
+                line2: cfg.footer2 || 'AI驱动的项目简介生成器'
               },
               projectLink: ''
             };
             posterConfig = builtConfig;
-            const techs = llmResult.techStack ? llmResult.techStack.join(' / ') : '';
-            finalNl = (llmResult.title || localData.name) + ' - ' + (llmResult.description || '') + (techs ? '，技术栈：' + techs : '');
+            const techs = cfg.techStack ? cfg.techStack.join(' / ') : '';
+            finalNl = (cfg.title || localData.name) + ' - ' + (cfg.description || '') + (techs ? '，技术栈：' + techs : '');
             console.log('🎨 [LLM] 生成海报: ' + finalNl);
           } else {
             // LLM 未配置或失败，降级到 README 方式
@@ -742,6 +1052,8 @@ function validatePosterHTML(html, sourceData) {
   // Validate against source data
   if (sourceData) {
     // GitHub data validation
+    // Only validate title if source has both owner AND name (GitHub projects)
+    // Local projects may only have 'name' without 'owner'
     if (sourceData.owner && sourceData.name) {
       const expectedTitle = sourceData.owner + '/' + sourceData.name;
       if (heroTitle && heroTitle[1] !== expectedTitle) {
@@ -749,7 +1061,9 @@ function validatePosterHTML(html, sourceData) {
       }
     }
     
-    if (sourceData.stars !== undefined) {
+    // Only validate stars if source explicitly provides stars > 0 (GitHub projects)
+    // Local projects have stars=0 or undefined — skip stars validation for them
+    if (sourceData.stars !== undefined && sourceData.stars > 0) {
       const stars = sourceData.stars;
       // Check if stars stat exists and is reasonably close (handles "244.4k" format)
       const hasStars = statNums.some(n => {
@@ -781,7 +1095,11 @@ function validatePosterHTML(html, sourceData) {
   if (!heroTitle) issues.push({ type: 'missing', field: 'hero-title' });
   if (!heroSubtitle) issues.push({ type: 'missing', field: 'hero-subtitle' });
   if (!heroBadge) issues.push({ type: 'missing', field: 'hero-badge' });
-  if (statNums.length === 0) issues.push({ type: 'missing', field: 'stats' });
+  // Only require stats for GitHub projects (which have owner)
+  // Local projects don't have stars/forks/etc, so skip stats check for them
+  if (statNums.length === 0 && sourceData && sourceData.owner) {
+    issues.push({ type: 'missing', field: 'stats' });
+  }
   
   return { valid: issues.length === 0, issues };
 }
@@ -801,6 +1119,7 @@ function validatePosterHTML(html, sourceData) {
             if (posterConfig.designSpec) {
               applyDesignSpecToTheme(theme, posterConfig.designSpec);
             }
+            updateProgress('html', process.env.LLM_MODEL || 'gemma4:e4b');
             html = generateAdaptiveCSS({ hero, sections, stats, footer, theme, lang });
           } else if (ghData) {
             // GitHub 项目：从 ghData 构建结构化数据
@@ -848,9 +1167,11 @@ function validatePosterHTML(html, sourceData) {
             if (ghData.designSpec) {
               applyDesignSpecToTheme(theme, ghData.designSpec);
             }
+            updateProgress('html', process.env.LLM_MODEL || 'gemma4:e4b');
             html = generateAdaptiveCSS({ hero, sections, stats, footer, theme, lang });
           } else {
             // 其他输入：使用旧的 NL 解析方式（fallback）
+            updateProgress('html', process.env.LLM_MODEL || 'gemma4:e4b');
             const result = generateFromNaturalLanguage(finalNl, genOverrides);
             html = result.html;
             theme = result.theme;
@@ -865,11 +1186,62 @@ function validatePosterHTML(html, sourceData) {
           theme = result.theme;
         }
 
-        // 验证海报内容
-        const sourceForValidation = ghData || localData || {};
-        const validation = validatePosterHTML(html, sourceForValidation);
-        if (!validation.valid) {
-          console.warn('⚠️ 海报内容验证警告:', JSON.stringify(validation.issues));
+        // ═══════════════════════════════════════════
+        //  Harness 验证循环（最多3轮）
+        // ═══════════════════════════════════════════
+        let harnessPassed = false;
+        let harnessRound = 0;
+        const maxRounds = 3;
+
+        while (!harnessPassed && harnessRound < maxRounds) {
+          harnessRound++;
+          
+          // 双重验证
+          const sourceForValidation = ghData || localData || {};
+          const htmlValidation = validatePosterHTML(html, sourceForValidation);
+          const structureValidation = validatePosterStructure(html);
+          
+          const allIssues = [
+            ...(htmlValidation.issues || []),
+            ...(structureValidation.issues || [])
+          ];
+          
+          if (allIssues.length === 0) {
+            harnessPassed = true;
+            console.log('✅ Harness 第' + harnessRound + '轮通过');
+            break;
+          }
+
+          console.warn('⚠️ Harness 第' + harnessRound + '轮验证失败: ' + JSON.stringify(allIssues).slice(0, 100));
+          
+          // 如果还有轮次，尝试修复
+          if (harnessRound < maxRounds) {
+            console.log('🔧 Harness 修复中...');
+            try {
+              if (posterConfig) {
+                // 有 LLM 配置：用配置重新生成
+                const { hero, sections, stats, footer } = posterConfig;
+                theme = THEMES[posterConfig.theme] || THEMES['apple-minimal'];
+                if (posterConfig.designSpec) {
+                  applyDesignSpecToTheme(theme, posterConfig.designSpec);
+                }
+                html = generateAdaptiveCSS({ hero, sections, stats, footer, theme, lang });
+              } else {
+                // 无 LLM 配置：用旧的 fallback
+                const retryResult = generateFromNaturalLanguage(finalNl, genOverrides);
+                html = retryResult.html;
+                theme = retryResult.theme;
+              }
+            } catch(repairErr) {
+              console.warn('⚠️ 修复失败:', repairErr.message);
+              break;
+            }
+          }
+        }
+
+        if (!harnessPassed) {
+          console.warn('⚠️ Harness 验证未通过，保留生成结果');
+          warnings.push('⚠️ 内容验证未完全通过');
         }
 
         const id = Date.now() + '-' + Math.random().toString(36).slice(2, 6);
@@ -887,11 +1259,15 @@ function validatePosterHTML(html, sourceData) {
         };
         fs.writeFileSync(path.join(outDir, 'meta.json'), JSON.stringify(meta, null, 2));
 
+        // 完成
+        updateProgress('done', '');
+
         if (!ghData && localData && !localData.readme && !posterConfig) warnings.push('📁 该目录无 README.md，内容可能不完整');
         if (ghData && ghData.notice) warnings.push(ghData.notice);
         json(res, 200, { ok: true, posterId: id, title: meta.title, github: meta.github, stars: meta.stars, hasSkill: meta.hasSkill, warnings });
       } catch(e) {
         console.error('❌ 生成失败: ' + e.message);
+        updateProgress('error', '');
         json(res, 500, { ok: false, error: e.message });
       }
     });
@@ -905,8 +1281,18 @@ function validatePosterHTML(html, sourceData) {
     let body = '';
     req.on('data', c => body += c);
     req.on('end', async () => {
+      let updateProgress;
       try {
-        const { prompt, type = 'custom', image, lang = 'zh', width = 780, customCss } = JSON.parse(body);
+        const { prompt, type = 'custom', image, lang = 'zh', width = 780, customCss, _progressId } = JSON.parse(body);
+        
+        // 更新进度辅助函数
+        updateProgress = (stage, model) => {
+          if (_progressId) {
+            progressMap.set(_progressId, { stage, model: model || 'LLM', timestamp: Date.now() });
+          }
+        };
+        
+        updateProgress('prepare', '');
         
         if (!prompt || prompt.trim().length < 3) {
           json(res, 400, { ok: false, error: 'prompt 必须至少 3 个字符' });
@@ -914,12 +1300,14 @@ function validatePosterHTML(html, sourceData) {
         }
         
         console.log(`🎨 [通用海报] type=${type}, prompt="${prompt.slice(0, 50)}..."`);
+        updateProgress('promptLlm', '');
         
         const { html, style } = await generateFromPrompt({ prompt, type, image, lang, width, customCss });
+        updateProgress('export', '');
         
         // 保存 HTML
         const posterId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-        const outDir = './posters/' + posterId;
+        const outDir = path.join(__dirname, 'posters', posterId);
         fs.mkdirSync(outDir, { recursive: true });
         fs.writeFileSync(outDir + '/poster.html', html, 'utf8');
         
@@ -939,10 +1327,12 @@ function validatePosterHTML(html, sourceData) {
         fs.writeFileSync(outDir + '/meta.json', JSON.stringify(meta, null, 2));
         
         console.log(`✅ 通用海报生成成功: ${posterId}`);
+        updateProgress('done', '');
         json(res, 200, { ok: true, posterId, style, meta });
         
       } catch(e) {
         console.error('❌ 通用海报生成失败: ' + e.message);
+        updateProgress('error', '');
         json(res, 500, { ok: false, error: e.message });
       }
     });
@@ -955,12 +1345,119 @@ function validatePosterHTML(html, sourceData) {
     return;
   }
 
+  // API: 获取设置（给 settings 页面）
+  if (req.method === 'GET' && pathname === '/api/settings') {
+    const llmApiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || '';
+    const githubToken = process.env.GITHUB_TOKEN || '';
+    json(res, 200, {
+      ok: true,
+      settings: {
+        llmBaseUrl: process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || '',
+        llmModel: process.env.LLM_MODEL || '',
+        hasLlmApiKey: !!llmApiKey,
+        llmApiKeyMasked: maskSecret(llmApiKey),
+        hasGithubToken: !!githubToken,
+        githubTokenMasked: maskSecret(githubToken),
+      }
+    });
+    return;
+  }
+
+  // API: 保存设置（写入 .env）
+  if (req.method === 'POST' && pathname === '/api/settings') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const updates = {};
+        if (Object.prototype.hasOwnProperty.call(payload, 'llmApiKey')) {
+          const v = String(payload.llmApiKey || '').trim();
+          updates.LLM_API_KEY = v || null;
+          updates.OPENAI_API_KEY = null;
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'llmBaseUrl')) {
+          updates.LLM_BASE_URL = String(payload.llmBaseUrl || '').trim() || null;
+          updates.OPENAI_BASE_URL = null;
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'llmModel')) {
+          updates.LLM_MODEL = String(payload.llmModel || '').trim() || null;
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'githubToken')) {
+          updates.GITHUB_TOKEN = String(payload.githubToken || '').trim() || null;
+        }
+        writeEnvUpdates(updates);
+        const llmApiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || '';
+        const githubToken = process.env.GITHUB_TOKEN || '';
+        json(res, 200, {
+          ok: true,
+          message: '设置已保存',
+          settings: {
+            llmBaseUrl: process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || '',
+            llmModel: process.env.LLM_MODEL || '',
+            hasLlmApiKey: !!llmApiKey,
+            llmApiKeyMasked: maskSecret(llmApiKey),
+            hasGithubToken: !!githubToken,
+            githubTokenMasked: maskSecret(githubToken),
+          }
+        });
+      } catch (e) {
+        json(res, 400, { ok: false, error: '设置保存失败: ' + e.message });
+      }
+    });
+    return;
+  }
+
+  // API: 测试 LLM 连通性（不保存）
+  if (req.method === 'POST' && pathname === '/api/settings/test') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const result = await testLlmConnectivity({
+          apiKey: payload.llmApiKey || '',
+          baseUrl: payload.llmBaseUrl || '',
+          model: payload.llmModel || ''
+        });
+        json(res, 200, { ok: true, test: result });
+      } catch (e) {
+        json(res, 400, { ok: false, error: 'LLM 连通性测试失败: ' + e.message });
+      }
+    });
+    return;
+  }
+
+  // API: 获取模型列表
+  if (req.method === 'GET' && pathname === '/api/models') {
+    try {
+      const params = parsedUrl.searchParams;
+      const result = await testLlmConnectivity({
+        baseUrl: params.get('baseUrl') || '',
+        apiKey: params.get('apiKey') || '',
+        model: params.get('model') || ''
+      });
+      json(res, 200, {
+        ok: result.ok,
+        models: result.modelsPreview || [],
+        modelCount: result.modelCount || 0,
+        endpoint: result.endpoint,
+        modelFound: result.modelFound,
+        message: result.message || ''
+      });
+    } catch (e) {
+      json(res, 500, { ok: false, error: e.message });
+    }
+    return;
+  }
+
   // API: 列表
   if (req.method === 'GET' && pathname === '/api/list') {
     const posters = [];
-    if (fs.existsSync('./posters')) {
-      for (const id of fs.readdirSync('./posters')) {
-        const mp = path.join('./posters', id, 'meta.json');
+    const POSTERS_DIR = path.join(__dirname, 'posters');
+    if (fs.existsSync(POSTERS_DIR)) {
+      for (const id of fs.readdirSync(POSTERS_DIR)) {
+        const mp = path.join(POSTERS_DIR, id, 'meta.json');
         if (fs.existsSync(mp)) {
           const m = JSON.parse(fs.readFileSync(mp, 'utf8'));
           m.id = id;
@@ -970,6 +1467,30 @@ function validatePosterHTML(html, sourceData) {
     }
     posters.sort((a, b) => new Date(b.created) - new Date(a.created));
     json(res, 200, { ok: true, posters });
+    return;
+  }
+
+  // API: 删除海报
+  if (req.method === 'DELETE' && pathname.startsWith('/api/poster/')) {
+    const id = pathname.split('/')[3];
+    if (!id) {
+      json(res, 400, { ok: false, error: 'Missing poster ID' });
+      return;
+    }
+    const POSTERS_DIR = path.join(__dirname, 'posters');
+    const posterDir = path.join(POSTERS_DIR, id);
+    
+    if (!fs.existsSync(posterDir)) {
+      json(res, 404, { ok: false, error: 'Poster not found' });
+      return;
+    }
+    
+    try {
+      fs.rmSync(posterDir, { recursive: true, force: true });
+      json(res, 200, { ok: true });
+    } catch(e) {
+      json(res, 500, { ok: false, error: e.message });
+    }
     return;
   }
 
@@ -993,12 +1514,29 @@ function validatePosterHTML(html, sourceData) {
 
   // API: 下载 PNG (新格式: /api/poster/{id}.png)
   if (req.method === 'GET' && pathname.match(/^\/api\/poster\/[^/]+\.png$/)) {
-    const id = pathname.split('/')[3].replace('\.png', '');
+    const id = pathname.split('/')[3].replace(/\.png$/, '');
     const fp = path.join(__dirname, 'posters', id, 'poster.png');
     if (fs.existsSync(fp)) {
-      const cd = 'attachment; filename="' + id + '.png"';
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Disposition': cd });
-      fs.createReadStream(fp).pipe(res);
+      // 支持缩略图参数 ?w=260
+      const urlParams = new URL(req.url, 'http://localhost').searchParams;
+      const thumbWidth = parseInt(urlParams.get('w')) || 0;
+      
+      if (thumbWidth > 0 && thumbWidth < 780) {
+        // 生成缩略图
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
+        const { spawn } = require('child_process');
+        const args = [fp, '-resize', thumbWidth + 'x', '-quality', '85', 'png:-'];
+        const ps = spawn('convert', args); // ImageMagick
+        ps.stdout.pipe(res);
+        ps.stderr.on('data', () => {});
+        ps.on('error', () => {
+          // ImageMagick 不可用，回退到原图
+          fs.createReadStream(fp).pipe(res);
+        });
+      } else {
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        fs.createReadStream(fp).pipe(res);
+      }
     } else { res.writeHead(404); res.end('Not Found'); }
     return;
   }
@@ -1009,7 +1547,7 @@ function validatePosterHTML(html, sourceData) {
     const id = parts[3];
     const fp = path.join(__dirname, 'posters', id, 'poster.png');
     if (fs.existsSync(fp)) {
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Disposition': 'attachment; filename="' + id + '.png"' });
+      res.writeHead(200, { 'Content-Type': 'image/png' });
       fs.createReadStream(fp).pipe(res);
     } else { res.writeHead(404); res.end('Not Found'); }
     return;

@@ -19,6 +19,7 @@
     </div>
     <a href="/web/index.html" class="nav-link" data-i18n="nav.generator">生成器</a>
     <a href="/web/gallery.html" class="nav-link" data-i18n="nav.gallery">画廊</a>
+    <a href="/web/settings.html" class="nav-link" data-i18n="nav.settings">设置</a>
   </div>
 </nav>
 
@@ -49,6 +50,7 @@ const I18N = {
   zh: {
     'nav.generator': '生成器',
     'nav.gallery': '画廊',
+    'nav.settings': '设置',
     'gallery.title': '内容简介卡画廊',
     'gallery.subtitle': '所有已生成的项目内容简介卡',
     'gallery.empty': '暂无海报，去生成一张吧',
@@ -57,6 +59,7 @@ const I18N = {
   en: {
     'nav.generator': 'Generator',
     'nav.gallery': 'Gallery',
+    'nav.settings': 'Settings',
     'gallery.title': 'Project Poster Gallery',
     'gallery.subtitle': 'All generated project posters',
     'gallery.empty': 'No posters yet. Go generate one!',
@@ -65,6 +68,8 @@ const I18N = {
 };
 
 let currentLang = 'zh';
+let galleryPosters = [];
+let currentGalleryCols = 0;
 
 function setLang(lang) {
   currentLang = lang;
@@ -91,28 +96,55 @@ async function loadGallery() {
   try {
     const res = await fetch('/api/list');
     const data = await res.json();
-    const grid = document.getElementById('galleryGrid');
-
-    if (!data.posters || data.posters.length === 0) {
-      grid.innerHTML = '<div class="gallery-empty">' + I18N[currentLang]['gallery.empty'] + '</div>';
-      return;
-    }
-
-    grid.innerHTML = data.posters.map(p => {
-      const date = formatDate(p.created);
-      const theme = p.theme || '';
-      const meta = [date, theme].filter(Boolean).join(' · ');
-      return '<div class="gallery-card" onclick="showModal(\'' + p.id + '\')">' +
-        '<img src="/api/poster/' + p.id + '.png?thumb=1" loading="lazy" alt="' + (p.title || '') + '">' +
-        '<div class="gallery-card-info">' +
-          '<div class="gallery-card-title">' + (p.title || '') + '</div>' +
-          (meta ? '<div class="gallery-card-meta">' + meta + '</div>' : '') +
-        '</div>' +
-      '</div>';
-    }).join('');
+    galleryPosters = Array.isArray(data.posters) ? data.posters : [];
+    renderGallery(galleryPosters);
   } catch(e) {
     console.error(e);
   }
+}
+
+function getGalleryColumnCount() {
+  const w = window.innerWidth || 1280;
+  if (w <= 480) return 1;
+  if (w <= 768) return 2;
+  if (w <= 1024) return 3;
+  return 4;
+}
+
+function renderCard(p) {
+  const date = formatDate(p.created);
+  const theme = p.theme || '';
+  const meta = [date, theme].filter(Boolean).join(' · ');
+  const deleteBtn = '<button class="gallery-delete-btn" onclick="event.stopPropagation();deletePoster(\'' + p.id + '\')" title="' + (currentLang === 'en' ? 'Delete' : '删除') + '">×</button>';
+  return '<div class="gallery-card" onclick="showModal(\'' + p.id + '\')">' +
+    '<div class="gallery-card-img">' +
+      deleteBtn +
+      '<img src="/api/poster/' + p.id + '.png?thumb=1" loading="lazy" alt="' + (p.title || '') + '">' +
+    '</div>' +
+    '<div class="gallery-card-info">' +
+      '<div class="gallery-card-title">' + (p.title || '') + '</div>' +
+      (meta ? '<div class="gallery-card-meta">' + meta + '</div>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+function renderGallery(posters) {
+  const grid = document.getElementById('galleryGrid');
+  if (!posters || posters.length === 0) {
+    grid.innerHTML = '<div class="gallery-empty">' + I18N[currentLang]['gallery.empty'] + '</div>';
+    return;
+  }
+
+  const cols = getGalleryColumnCount();
+  currentGalleryCols = cols;
+  const colHtml = Array.from({ length: cols }, () => []);
+
+  // 横向顺序分发：idx0->第1列，idx1->第2列 ...，视觉顺序从左到右降序
+  posters.forEach((p, idx) => {
+    colHtml[idx % cols].push(renderCard(p));
+  });
+
+  grid.innerHTML = colHtml.map(cards => '<div class="gallery-col">' + cards.join('') + '</div>').join('');
 }
 
 function showModal(id) {
@@ -122,6 +154,21 @@ function showModal(id) {
 
 function closeModal() {
   document.getElementById('modal').classList.remove('visible');
+}
+
+async function deletePoster(id) {
+  if (!confirm(currentLang === 'en' ? 'Delete this poster?' : '确定删除这张海报？')) return;
+  try {
+    const res = await fetch('/api/poster/' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) {
+      loadGallery();
+    } else {
+      alert(data.error || (currentLang === 'en' ? 'Delete failed' : '删除失败'));
+    }
+  } catch(e) {
+    alert(currentLang === 'en' ? 'Delete failed' : '删除失败');
+  }
 }
 
 // 初始化：读取语言偏好
@@ -137,6 +184,14 @@ function closeModal() {
   }
   loadGallery();
 })();
+
+window.addEventListener('resize', function() {
+  if (!galleryPosters.length) return;
+  const nextCols = getGalleryColumnCount();
+  if (nextCols !== currentGalleryCols) {
+    renderGallery(galleryPosters);
+  }
+});
 
     
     // Handle ?id= URL parameter to load specific poster
