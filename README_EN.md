@@ -2,50 +2,89 @@
 
 > Input a GitHub URL or local project path, AI automatically analyzes README, tech stack, and code structure to generate a clean project introduction poster.
 
+[中文](README.md) · [Quick Start](#-quick-start) · [Examples](#-sample-posters) · [API Docs](docs/API.md)
+
+---
+
+[![Node.js Version](https://img.shields.io/badge/node-%20>=18-brightgreen)](package.json)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/YaoIsAI/poster-hub)](https://github.com/YaoIsAI/poster-hub/stargazers)
+
+---
+
+## 🎯 What Is It
+
+PosterHub is a **local-first** AI poster generator.
+
+You can provide:
+- a GitHub repository URL
+- a local project path
+- a plain-language project description
+
+Then PosterHub analyzes project context and generates a high-quality shareable poster.
+
 ---
 
 ## 🧭 Architecture
 
-PosterHub is a **local-first** AI poster generator with two components:
+PosterHub follows a local-first, dual-side collaboration architecture:
 
 ```
 ┌─────────────────────────────────────────────┐
 │  Client (Browser / AI Assistant)             │
 │                                             │
-│  Input: GitHub URL or local path             │
+│  Input: GitHub URL / local path / description│
 │       ↓                                      │
 │  AI reads SKILL.md, learns the skill         │
 │       ↓                                      │
-│  Calls: POST /api/generate                   │
+│  Calls: POST /api/generate or /api/prompt    │
 └─────────────────┬───────────────────────────┘
                   ↓
 ┌─────────────────────────────────────────────┐
 │  PosterHub Server (localhost:3008)           │
 │                                             │
 │  1. Parse input → GitHub API / local scan    │
-│  2. AI Analyze → OpenAI-compatible LLM (any model)│
+│  2. AI analyze → OpenAI-compatible LLM        │
 │  3. Generate → HTML + CSS poster             │
-│  4. Output PNG → Playwright full-page shot   │
+│  4. Export PNG → Chromium full-page screenshot│
 │       ↓                                      │
-│  Return: posterId → /api/poster/:id/png      │
+│  Return: posterId → /api/poster/:id.png      │
 └─────────────────────────────────────────────┘
 ```
 
 **Key features:**
 - AI assistants auto-learn via `SKILL.md` discovery
 - Generated posters include project GitHub URL (self-promotion)
-- Zero-cost: supports any OpenAI-compatible LLM (DeepSeek / Qwen / Claude etc.)
+- Supports any OpenAI-compatible LLM (DeepSeek / Qwen / OpenAI, etc.)
 
 ---
 
 ## ✨ Features
 
 - 🤖 **AI-Driven** — Enter any project, AI analyzes content and generates poster
+- 📁 **Local Project Analysis** — Scans local folders and uses LLM for richer content extraction
+- 🧩 **Dual Generation Routes** — `POST /api/generate` (project poster) + `POST /api/prompt` (style-based poster)
 - 🌐 **Bilingual** — UI and poster content support Chinese and English
+- 🪄 **Multiple Poster Types** — `wechat` / `xiaohongshu` / `performance` / `corporate` / `custom`
 - 📱 **HD Export** — Native 780px width, 2× clarity
+- ⚙️ **Settings Page** — Built-in LLM connectivity test, local model refresh, and model selection
+- 🔁 **Closed-Loop Audit** — `/api/prompt` now runs planner -> generator -> auditor -> auto-repair -> re-audit before PNG export
 - 🌐 **Web Interface** — No installation needed, open in browser
 - 🔗 **GitHub Integration** — Paste GitHub URL, AI analyzes automatically
 - ⚡ **Local Run** — Clone and run, minimal dependencies
+
+---
+
+## 📸 Sample Posters
+
+| Theme | Preview |
+|------|------|
+| Apple Minimal | ![](examples/ims-apple.png) |
+| Dark Tech | ![](examples/ims-dark.png) |
+| Python Style | ![](examples/cpython-light.png) |
+| React + Vercel | ![](examples/react-vercel.png) |
+
+More examples: [examples/](examples/)
 
 ---
 
@@ -57,7 +96,7 @@ PosterHub is a **local-first** AI poster generator with two components:
 git clone https://github.com/YaoIsAI/poster-hub.git
 cd poster-hub
 npm install
-npx playwright install chromium
+npx @sparticuz/chromium install
 ```
 
 ### Step 2: Start Server
@@ -67,7 +106,7 @@ node server.js
 # Server runs at http://localhost:3008
 ```
 
-### Step 3: Use (3 ways)
+### Step 3: Use (3 Ways)
 
 #### Option A: Web Interface (Simplest)
 Open http://localhost:3008, paste a GitHub URL, click "Generate"
@@ -83,7 +122,7 @@ After installing the skill, just say:
 ```bash
 curl -X POST http://localhost:3008/api/generate \
   -H "Content-Type: application/json" \
-  -d '{"nl": "https://github.com/facebook/react", "lang": "en"}'
+  -d '{"nl": "https://github.com/facebook/react", "lang": "en", "inputType": "url"}'
 ```
 
 ---
@@ -94,18 +133,33 @@ curl -X POST http://localhost:3008/api/generate \
 
 OpenClaw AI assistants automatically scan `~/.openclaw/workspace/skills/` for all `SKILL.md` files and learn the skills defined within.
 
+**Minimal one-line prompt for OpenClaw (recommended):**
+
+```text
+Learn https://raw.githubusercontent.com/YaoIsAI/poster-hub/main/SKILL.md and auto-call it whenever I ask for a project poster.
+```
+
 Once the AI learns PosterHub, it will:
 1. Understand the user's "generate poster" intent
 2. Parse the GitHub URL or local path
 3. Call the PosterHub API
 4. Return the poster link to the user
 
+### First-Run Guidance (Recommended AI behavior)
+
+On first use, the AI should proactively ask user to:
+
+1. Open settings page: `http://localhost:3008/web/settings.html`
+2. Configure `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`
+3. Click "Test LLM Connectivity"
+4. Optionally configure `GITHUB_TOKEN` for higher GitHub API limits
+
 ### Install Steps
 
 ```bash
 # Clone to OpenClaw skills directory
-git clone https://github.com/YaoIsAI/poster-hub.git \
-  ~/.openclaw/workspace/skills/poster-hub
+mkdir -p ~/.openclaw/workspace/skills
+git clone https://github.com/YaoIsAI/poster-hub.git ~/.openclaw/workspace/skills/poster-hub
 
 cd ~/.openclaw/workspace/skills/poster-hub
 npm install
@@ -181,12 +235,17 @@ poster-hub/
 ├── README_EN.md          # English documentation
 ├── server.js             # HTTP API server (port 3008)
 ├── generator.js          # Poster HTML/CSS generation engine
+├── prompt-generator.js   # Generic style-based poster generator
+├── design-system.js      # Design token and design spec parser
+├── poster-generator.js   # Adaptive CSS poster generator
 ├── screenshot.js         # Playwright full-page screenshot
 ├── local-llm.js         # LLM project analyzer (any OpenAI-compatible API)
 ├── generate-poster.js   # CLI command-line tool
 ├── web/
 │   ├── index.html       # Generator web interface
-│   └── gallery.html     # Poster gallery page
+│   ├── gallery.html     # Poster gallery page
+│   ├── settings.html    # Settings UI (LLM test / model refresh)
+│   └── css/style.css    # UI styles
 └── posters/             # Generated posters (local storage)
 ```
 
@@ -206,17 +265,19 @@ poster-hub/
 ## 🔌 API Reference
 
 ### Generate Poster
-```
+```http
 POST /api/generate
 Content-Type: application/json
 
-Body:
 {
   "nl": "GitHub URL or local path or project description",
-  "lang": "zh" | "en"
+  "lang": "zh" | "en",
+  "inputType": "url" | "browse"
 }
+```
 
-Response:
+Response example:
+```json
 {
   "ok": true,
   "posterId": "1775490000000-xxxx",
@@ -227,18 +288,49 @@ Response:
 }
 ```
 
-### Download Poster PNG
+### Generate Generic Poster
+```http
+POST /api/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Create a WeChat style promo poster for an AI tool",
+  "type": "wechat" | "xiaohongshu" | "performance" | "corporate" | "custom",
+  "lang": "zh" | "en",
+  "width": 780
+}
 ```
+
+### List Prompt Types
+```http
+GET /api/types
+```
+
+### Download Poster PNG
+```http
 GET /api/poster/:posterId.png
-→ Content-Type: image/png
-→ Content-Disposition: attachment; filename="posterId.png"
+```
+
+### Get Poster Metadata
+```http
+GET /api/poster/:posterId/meta.json
 ```
 
 ### List All Posters
-```
+```http
 GET /api/list
-Response: { "posters": [{ "id": "...", "title": "...", "date": "..." }] }
 ```
+
+### Read/Save Settings
+```http
+GET /api/settings
+POST /api/settings
+POST /api/settings/test
+GET /api/models
+GET /api/progress/:progressId
+```
+
+See details: [docs/API.md](docs/API.md)
 
 ---
 
@@ -247,10 +339,10 @@ Response: { "posters": [{ "id": "...", "title": "...", "date": "..." }] }
 | Module | Content |
 |--------|---------|
 | Hero | Project name + description + ⭐ Stars |
-| Stats | Page count / API count / File count |
+| Stats | Key metrics (e.g. file/module counts) |
 | Tech Stack | Detected programming languages and frameworks |
 | Modules | Project's main functional areas |
-| Footer | Brand watermark + generation date + GitHub link |
+| Footer | Brand + generation info + project link |
 
 ---
 
@@ -262,25 +354,39 @@ Response: { "posters": [{ "id": "...", "title": "...", "date": "..." }] }
 
 ---
 
+## 🎨 Built-in Themes
+
+| Theme ID | Style |
+|---------|------|
+| `apple-minimal` | Apple-like minimal |
+| `warm-earth` | Warm earthy palette |
+| `tech-blue` | Cool tech blue |
+| `creative` | Colorful creative gradient |
+
+---
+
 ## ⚙️ Configuration
 
 Environment variables (optional):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GITHUB_TOKEN` | GitHub API Token (raises rate limit; works without it but with less data) | none |
-| `LLM_API_KEY` | OpenAI-compatible API Key (for AI analysis; DeepSeek/Qwen/Claude all work) | none |
-| `LLM_BASE_URL` | LLM API endpoint (default: MiniMax; also works with DeepSeek / OpenAI / SiliconFlow) | MiniMax default |
+| `GITHUB_TOKEN` | GitHub API token (higher rate limits) | none |
+| `LLM_API_KEY` | OpenAI-compatible API key for AI analysis | none |
+| `LLM_BASE_URL` | LLM API endpoint (MiniMax by default) | MiniMax default |
 | `LLM_MODEL` | LLM model name (default: MiniMax-M2.1) | MiniMax-M2.1 |
 | `PORT` | Server port | `3008` |
-| `POSTER_LOGO_PATH` | Custom logo image path | none |
-| `POSTER_BRAND_NAME` | Custom brand name (shown in poster footer) | `PosterHub` |
+| `POSTER_LOGO_PATH` | Custom logo file path | none |
+| `POSTER_BRAND_NAME` | Brand name shown in footer | `PosterHub` |
 
 ```bash
 # Recommended: create .env file
 cp .env.example .env
 # Edit .env with your API keys
 ```
+
+You can also configure and test LLM connectivity via UI:
+`http://localhost:3008/web/settings.html`
 
 ---
 
@@ -293,10 +399,10 @@ cp .env.example .env
 → Set `GITHUB_TOKEN` env var for complete data (60 requests/hour without it)
 
 **Q: Poster content too simple?**
-→ Set `MINIMAX_API_KEY` for AI-powered deep analysis (falls back to README extraction if missing)
+→ Set `LLM_API_KEY` for AI-powered deep analysis (falls back to README extraction if missing)
 
 **Q: Generated image is blank?**
-→ Make sure Playwright is installed: `npx playwright install chromium`
+→ Install bundled Chromium: `npx @sparticuz/chromium install`
 
 ---
 

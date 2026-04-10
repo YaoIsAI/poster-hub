@@ -1,5 +1,7 @@
 # Contributing to PosterHub
 
+中文 | [English](#english)
+
 感谢你关注 PosterHub！欢迎各种形式的贡献。
 
 ---
@@ -31,10 +33,10 @@
 
 1. **Fork** 本仓库
 2. **Clone** 你的 Fork
-3. **安装依赖** — `npm install && npx playwright install chromium`
-4. **创建分支** — `git checkout -b feature/your-feature-name`
-5. **开发 & 测试** — `node server.js` 测试 API
-6. **提交** — `git commit -m "feat: add new feature"`
+3. **安装依赖** - `npm install`（会通过 postinstall 自动安装 Chromium）
+4. **创建分支** - `git checkout -b feature/your-feature-name`
+5. **开发 & 测试** - `node server.js` 测试 API
+6. **提交** - `git commit -m "feat: add new feature"`
 7. **打开 Pull Request**
 
 ### 代码规范
@@ -45,4 +47,55 @@
 
 ---
 
-有任何问题可以在 GitHub 上提 Issue 或提交 PR 📨
+有任何问题可以在 GitHub 上提 Issue 或提交 PR。
+
+---
+
+## English
+
+Thank you for your interest in PosterHub. Contributions of all kinds are welcome.
+
+---
+
+## 🐛 Report Bugs
+
+Please open a report via [GitHub Issues](https://github.com/YaoIsAI/poster-hub/issues) and include:
+
+- PosterHub version (visible in `node server.js` output)
+- Reproduction steps (GitHub URL / project description used)
+- Expected behavior vs actual behavior
+- Screenshots if available
+
+---
+
+## 💡 Request Features
+
+Please describe:
+
+- The problem you want to solve
+- Proposed solution or API design
+- Possible alternatives
+
+---
+
+## 🔧 Submit PRs
+
+### Development Flow
+
+1. **Fork** this repository
+2. **Clone** your fork
+3. **Install dependencies** - `npm install` (Chromium is installed in postinstall)
+4. **Create a branch** - `git checkout -b feature/your-feature-name`
+5. **Develop & test** - run `node server.js` and verify API behavior
+6. **Commit** - `git commit -m "feat: add new feature"`
+7. **Open a Pull Request**
+
+### Code Style
+
+- Use 2-space indentation
+- Self-test with `node server.js` before submitting
+- Explain what changed and why in PR description
+
+---
+
+If you have questions, open an Issue or submit a PR.
