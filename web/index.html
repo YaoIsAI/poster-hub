@@ -36,7 +36,7 @@
     }
     @keyframes posterFlowUp {
       0% { transform: translate3d(0, 0, 0); }
-      100% { transform: translate3d(0, -50%, 0); }
+      100% { transform: translate3d(0, -100%, 0); }
     }
     .poster-bg-item {
       border-radius: 8px;
@@ -394,32 +394,24 @@ async function loadPosterBg() {
     
     const inner = document.getElementById('posterBgInner');
     const posters = data.posters.slice(0, 18);
-    // 根据海报宽度（180px）计算列数
-    const posterWidth = 180;
-    const cols = Math.max(2, Math.min(6, Math.ceil((window.innerWidth || 1200) / posterWidth)));
-    const columns = Array.from({ length: cols }, () => []);
-
-    // 横向分发，再在每列重复，形成无缝向上滚动
-    posters.forEach((p, idx) => {
-      columns[idx % cols].push(p);
-    });
-
+    
+    // 横向排列，6个换一行
+    const COLS_PER_ROW = 6;
     let html = '';
-    // 按顺序排列，6个换一行
-    const cols = 6;
-    posters.forEach((p, i) => {
-      // 每6个创建一行
-      if (i % cols === 0) {
-        const rowItems = posters.slice(i, i + cols);
-        const rowDuration = 120 + (Math.floor(i / cols) % 3) * 20;
-        const rowDelay = -1 * (i / cols) * 5;
-        html += '<div class="poster-bg-col" style="--flow-duration:' + rowDuration + 's;--flow-delay:' + rowDelay + 's">';
-        rowItems.forEach(item => {
-          html += '<div class="poster-bg-item"><img src="/api/poster/' + item.id + '.png" loading="lazy" alt=""></div>';
-        });
-        html += '</div>';
-      }
-    });
+    
+    for (let i = 0; i < posters.length; i += COLS_PER_ROW) {
+      const rowItems = posters.slice(i, i + COLS_PER_ROW);
+      // 每行独立动画，持续向上滚动（速度减慢）
+      const rowDuration = 120 + Math.floor(i / COLS_PER_ROW) * 20;
+      const rowDelay = -(i / COLS_PER_ROW) * 5;
+      
+      html += '<div class="poster-bg-col" style="--flow-duration:' + rowDuration + 's;--flow-delay:' + rowDelay + 's">';
+      rowItems.forEach(item => {
+        html += '<div class="poster-bg-item"><img src="/api/poster/' + item.id + '.png" loading="lazy" alt=""></div>';
+      });
+      html += '</div>';
+    }
+    
     inner.innerHTML = html;
   } catch(e) {
     console.log('背景海报加载失败:', e.message);
