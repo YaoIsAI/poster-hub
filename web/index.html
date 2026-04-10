@@ -6,104 +6,69 @@
   <title>PosterHub — AI 海报生成</title>
   <link rel="stylesheet" href="/web/css/style.css">
   <style>
-    /* 动态海报瀑布流背景 */
+    /* 动态海报背景：恢复为更接近旧版的可见度与流动感 */
     .poster-bg {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       z-index: 0;
       overflow: hidden;
       pointer-events: none;
-    }
-    .poster-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 1;
-      background: rgba(255,255,255,0.1);
-      backdrop-filter: blur(1px);
-      pointer-events: none;
+      opacity: 0.64;
     }
     #posterBgInner {
       display: flex;
-      gap: 36px;
+      gap: 28px;
+      height: 100%;
       padding: 0 12px;
+      align-items: stretch;
     }
     .poster-bg-col {
       flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 36px;
+      gap: 16px;
+      will-change: transform;
+      animation: posterFlowUp var(--flow-duration, 76s) linear infinite;
+      animation-delay: var(--flow-delay, 0s);
+      backface-visibility: hidden;
     }
-    @keyframes flowDown {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(-50%); }
-    }
-    .poster-bg-item img {
-      width: 100%;
-      display: block;
-      border-radius: 10px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06);
-    }
-    /* 主内容层 */
-    .main { position: relative; z-index: 2; transform: translateZ(0); }
-    .nav { position: relative; z-index: 3; transform: translateZ(0); }
-    @media (max-width: 1024px) {
-      #posterBgInner { gap: 24px; }
-      .poster-bg-col { animation: none; }
-    }
-    /* 动态海报瀑布流背景 */
-    .poster-bg {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 0;
-      overflow: hidden;
-      pointer-events: none;
-      opacity: 0.6;
-    }
-    .poster-bg-inner {
-      column-count: 6;
-      column-gap: 12px;
-      padding: 0 12px;
-      animation: flowDown 60s linear infinite;
-    }
-    @keyframes flowDown {
-      0% { transform: translateY(0) translateX(0); opacity: 0.6; }
-      25% { transform: translateY(-12%) translateX(4px); opacity: 0.55; }
-      50% { transform: translateY(-25%) translateX(0); opacity: 0.6; }
-      75% { transform: translateY(-37%) translateX(-4px); opacity: 0.55; }
-      100% { transform: translateY(-50%) translateX(0); opacity: 0.6; }
+    @keyframes posterFlowUp {
+      0% { transform: translate3d(0, 44%, 0); }
+      100% { transform: translate3d(0, -46%, 0); }
     }
     .poster-bg-item {
-      break-inside: avoid;
-      margin-bottom: 12px;
       border-radius: 8px;
       overflow: hidden;
-      opacity: 0.6;
-      transition: opacity 0.3s;
+      opacity: 0.55;
+      transform: translateZ(0);
     }
-    .poster-bg-item:hover { opacity: 1; }
     .poster-bg-item img {
       width: 100%;
       display: block;
-      border-radius: 10px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+      image-rendering: -webkit-optimize-contrast;
     }
-    /* 让主内容在背景之上 */
+    /* 主内容层 */
     body > * { position: relative; z-index: 1; }
-    .main, .nav, footer { position: relative; z-index: 1; }
+    .main, .nav, footer { position: relative; z-index: 1; transform: translateZ(0); }
     /* 毛玻璃叠加层 */
     body::before {
       content: '';
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       z-index: 1;
-      background: rgba(255,255,255,0.75);
-      backdrop-filter: blur(6px);
+      background: rgba(255,255,255,0.32);
+      backdrop-filter: blur(1px);
+    }
+    @media (max-width: 1024px) {
+      #posterBgInner { gap: 18px; }
+      .poster-bg-col { animation-duration: 90s; }
     }
     @media (max-width: 768px) {
-      .poster-bg-inner { column-count: 3; }
-    }
-    @media (max-width: 480px) {
-      .poster-bg-inner { column-count: 2; }
+      .poster-bg-col { animation-duration: 105s; }
+      .poster-bg-item { opacity: 0.5; }
     }
   </style>
 </head>
@@ -125,6 +90,7 @@
     </div>
     <a href="/web/index.html" class="nav-link" data-i18n="nav.generator">生成器</a>
     <a href="/web/gallery.html" class="nav-link" data-i18n="nav.gallery">画廊</a>
+    <a href="/web/settings.html" class="nav-link" data-i18n="nav.settings">设置</a>
   </div>
 </nav>
 
@@ -143,47 +109,36 @@
     </svg>
     <span class="brand-text">PosterHub</span>
   </h1>
+  <div class="hero-collapsible" id="heroCollapsible">
   <p class="subline" data-i18n="hero.subtitle">AI 驱动的项目简介海报生成器</p>
 
-  <!-- 输入卡片 -->
-  <!-- 输入卡片 -->
+  <!-- Google 搜索框 -->
   <div class="input-card">
-    <!-- 标签切换 -->
-    <div class="tabs">
-      <button class="tab-btn active" data-type="url" onclick="selectTab(this)">
-        <span class="tab-icon">🔗</span>
-        <span data-i18n="tabs.github">GitHub 地址</span>
-      </button>
-      <button class="tab-btn" data-type="local" onclick="selectTab(this)">
-        <span class="tab-icon">📁</span>
-        <span data-i18n="tabs.local">本地文件</span>
-      </button>
-    </div>
-
-    <!-- 输入框 -->
-    <div class="input-wrapper" id="inputWrapper">
-      <div class="input-row" id="inputRow">
-        <!-- 本地文件模式：隐藏的文件选择器和选择目录按钮 -->
-        <input type="file" id="folderInput" webkitdirectory style="display:none" onchange="onFolderSelected(this)">
-        <button class="folder-btn" id="folderBtn" style="display:none" onclick="pickFolder()" title="选择本地目录">
-          <span class="tab-icon">📁</span>
-        </button>
-        <input type="text" id="nlInput" class="main-input"
-          data-placeholder-zh="粘贴 GitHub 地址，例如：https://github.com/facebook/react"
-          data-placeholder-en="Paste GitHub URL, e.g.: https://github.com/facebook/react"
-          placeholder="粘贴 GitHub 地址，例如：https://github.com/facebook/react"
-          onkeydown="if(event.key==='Enter')generate()">
-        <button class="generate-btn" id="generateBtn" onclick="generate()">
-          <span data-i18n="btn.generate">生成简介卡</span>
-        </button>
+    <div class="search-box">
+      <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="onImageSelected(this)">
+      <label class="search-icon-btn" for="imageInput" title="上传参考图片（可选）">+</label>
+      <input type="text" id="nlInput" class="search-input"
+        placeholder="输入项目描述，或粘贴 GitHub 地址 / 本地路径..."
+        onkeydown="if(event.key==='Enter')generate()">
+      <div class="type-select-wrapper">
+        <button class="search-icon-btn" id="typeBtn" title="选择海报类型"><span id="typeLabel" data-i18n="type.btn">类型</span> ▼</button>
+        <div class="type-menu" id="typeMenu">
+          <div class="type-option active" data-type=""><span data-i18n="type.default">默认</span></div>
+          <div class="type-option" data-type="wechat"><span data-i18n="type.wechat">微信风格</span></div>
+          <div class="type-option" data-type="xiaohongshu"><span data-i18n="type.xiaohongshu">小红书风格</span></div>
+          <div class="type-option" data-type="performance"><span data-i18n="type.performance">演唱会海报</span></div>
+          <div class="type-option" data-type="corporate"><span data-i18n="type.corporate">企业宣传</span></div>
+          <div class="type-option" data-type="custom"><span data-i18n="type.custom">自定义风格</span></div>
+        </div>
       </div>
+      <input type="file" id="folderInput" webkitdirectory style="display:none" onchange="onFolderSelected(this)">
+      <button class="search-icon-btn" onclick="document.getElementById('folderInput').click()" title="选择本地项目目录">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </button>
     </div>
-
-    <!-- 学习状态 -->
-    <div class="learn-bar" id="learnBar" style="display:none">
-      <span class="learn-dot">⚡</span>
-      <span data-i18n="status.learning">OpenClaw 正在学习项目...</span>
-    </div>
+    <button class="generate-btn" id="generateBtn" onclick="generate()"><span data-i18n="btn.generate">生成海报</span></button>
   </div>
 
   <!-- 警告提示 -->
@@ -194,12 +149,13 @@
   <!-- OpenClaw 一键安装 -->
   <div class="oc-bar">
     <span class="oc-bar-icon">🦞</span>
-    <span class="oc-bar-cmd" id="installCmd">git clone https://github.com/YaoIsAI/poster-hub.git ~/.openclaw/workspace/skills/poster-hub</span>
+    <span class="oc-bar-cmd" id="installCmd">mkdir -p ~/.openclaw/workspace/skills &amp;&amp; git clone https://github.com/YaoIsAI/poster-hub.git ~/.openclaw/workspace/skills/poster-hub</span>
     <button class="oc-bar-copy" onclick="copyInstallCmd()" data-i18n="oc.bar.copy">复制</button>
   </div>
 
   <!-- OpenClaw 提示 -->
-  <div class="oc-hint" data-i18n="oc.hint">对 OpenClaw 说「帮我去 GitHub 查找 xxx 项目，生成简介海报」或「帮我分析本地 xxx 项目，生成简介海报」</div>
+  <div class="oc-hint" data-i18n="oc.hint">对 OpenClaw 说「学习 https://raw.githubusercontent.com/YaoIsAI/poster-hub/main/SKILL.md，并在我说生成项目海报时自动调用它」</div>
+  </div>
 
   <!-- Loading -->
   <div class="loading" id="loading">
@@ -215,7 +171,7 @@
     <div class="result-actions">
       <button class="action-btn" onclick="openHtml()"><span data-i18n="btn.preview">查看大图</span></button>
       <button class="action-btn" onclick="downloadPng()"><span data-i18n="btn.download">下载 PNG</span></button>
-      <button class="action-btn" onclick="copyLink()"><span data-i18n="btn.copyLink">复制链接</span></button>
+      <button class="action-btn" onclick="copyLink(event)"><span data-i18n="btn.copyLink">复制链接</span></button>
     </div>
     <div class="github-bar" id="githubBar" style="display:none">
       <a id="githubLink" href="#" target="_blank"></a>
@@ -239,21 +195,50 @@
 <script>
 // ===== 全局变量 =====
 let inputType = 'url';
+let currentPosterId = null;
+let isPosterFocusMode = false;
+let lastScrollY = 0;
+let selectedType = '';
+let isHeaderCompressed = false;
+let scrollTicking = false;
+let loadingTimer = null;
+let loadingRerender = null;
+let progressPollingTimer = null;
+let currentAbortController = null;
+let isGenerating = false;
 
 // ===== 国际化 =====
 const I18N = {
   zh: {
+    'type.btn': '类型',
+    'type.default': '默认',
+    'type.wechat': '微信风格',
+    'type.xiaohongshu': '小红书风格',
+    'type.performance': '演唱会海报',
+    'type.corporate': '企业宣传',
+    'type.custom': '自定义风格',
     'nav.generator': '生成器',
     'nav.gallery': '画廊',
+    'nav.settings': '设置',
     'hero.subtitle': 'AI 驱动的项目简介海报生成器',
     'tabs.github': 'GitHub 地址',
     'tabs.local': '本地文件',
     'btn.pickFolder': '选择目录',
     'tabs.browse': '浏览文件',
-            'btn.generate': '生成简介卡',
+            'btn.generate': '生成海报',
+            'btn.generate.stop': '停止',
     'btn.generate.loading': '生成中...',
     'status.learning': '🧠 OpenClaw 正在学习项目...',
     'status.generating': 'AI 正在分析项目内容...',
+    'status.step.prepare': '正在准备任务',
+    'status.step.fetch': '正在抓取项目上下文',
+    'status.step.promptFetch': '正在整理输入内容',
+    'status.step.llm': '{model} 正在分析项目结构',
+    'status.step.promptLlm': '{model} 正在生成版式文案',
+    'status.step.audit': '正在审查内容一致性',
+    'status.step.repair': '审查未通过，正在自动纠偏',
+    'status.step.html': '正在生成海报 HTML/CSS',
+    'status.step.export': '正在导出高清图片',
     'btn.preview': '查看大图',
     'btn.download': '下载 PNG',
     'btn.copyLink': '复制链接',
@@ -264,21 +249,29 @@ const I18N = {
     'oc.title': '⚡ OpenClaw 接入指南',
     'oc.desc': '让 OpenClaw 一键学会这个项目，生成真正有内容的 AI 海报',
     'oc.bar': '🦞',
-    'oc.bar.copy': '复制',
-    'oc.hint': '对 OpenClaw 说「帮我去 GitHub 查找 xxx 项目，生成简介海报」或「帮我分析本地 xxx 项目，生成简介海报」',
+    'oc.copy': '复制',
+    'oc.hint': '对 OpenClaw 说「学习 https://raw.githubusercontent.com/YaoIsAI/poster-hub/main/SKILL.md，并在我说生成项目海报时自动调用它」',
     'oc.step1': '复制命令，在 OpenClaw 中执行安装',
     'oc.step2': 'OpenClaw 自动从 GitHub 拉取 SKILL.md + README',
     'oc.step3': '以后说"生成 {title} 海报"即可',
     'oc.skillPreview': '📄 SKILL.md 预览',
     'oc.install': '⚡ OpenClaw 接入',
     'error.failed': '生成失败',
-    'placeholder.github': '粘贴 GitHub 地址，例如：https://github.com/facebook/react',
-    'placeholder.local': '粘贴本地项目路径，回车生成',
+    'placeholder.github': '输入项目描述，或粘贴 GitHub 仓库地址',
+    'placeholder.local': '输入项目描述，或粘贴本地项目目录路径（也可点文件夹按钮选择）',
     'placeholder.browse': '点击按钮选择文件夹',
   },
   en: {
+    'type.btn': 'Type',
+    'type.default': 'Default',
+    'type.wechat': 'WeChat',
+    'type.xiaohongshu': 'Xiaohongshu',
+    'type.performance': 'Concert',
+    'type.corporate': 'Corporate',
+    'type.custom': 'Custom',
     'nav.generator': 'Generator',
     'nav.gallery': 'Gallery',
+    'nav.settings': 'Settings',
     'hero.subtitle': 'AI-Powered Project Poster Generator',
     'tabs.github': 'GitHub URL',
     
@@ -286,9 +279,19 @@ const I18N = {
     'tabs.local': 'Local Files',
     'btn.pickFolder': 'Pick Folder',
     'btn.generate': 'Generate Poster',
+    'btn.generate.stop': 'Stop',
     'btn.generate.loading': 'Generating...',
     'status.learning': '🧠 OpenClaw is cloning and learning the project...',
     'status.generating': 'AI is analyzing project...',
+    'status.step.prepare': 'Preparing task',
+    'status.step.fetch': 'Collecting project context',
+    'status.step.promptFetch': 'Processing prompt input',
+    'status.step.llm': '{model} is analyzing project structure',
+    'status.step.promptLlm': '{model} is composing layout content',
+    'status.step.audit': 'Auditing content consistency',
+    'status.step.repair': 'Audit failed, auto-correcting',
+    'status.step.html': 'Generating poster HTML/CSS',
+    'status.step.export': 'Exporting HD image',
     'btn.preview': 'Preview',
     'btn.download': 'Download PNG',
     'btn.copyLink': 'Copy Link',
@@ -303,16 +306,46 @@ const I18N = {
     'oc.step3': 'Then say "Generate {title} poster" anytime',
     'oc.skillPreview': '📄 SKILL.md Preview',
     'oc.bar': '🦞',
+    'oc.copy': 'Copy',
     'oc.bar.copy': 'Copy',
-    'oc.hint': 'Say "Find xxx on GitHub and generate a poster" or "Analyze local xxx project and generate a poster"',
+    'oc.hint': 'Tell OpenClaw: "Learn https://raw.githubusercontent.com/YaoIsAI/poster-hub/main/SKILL.md and auto-call it whenever I ask for a project poster."',
     'error.failed': 'Generate failed',
-    'placeholder.github': 'Paste GitHub URL, e.g.: https://github.com/facebook/react',
-    'placeholder.local': 'Paste local project path, press Enter',
+    'placeholder.github': 'Enter a project description, or paste a GitHub repository URL',
+    'placeholder.local': 'Enter a project description, or paste a local project folder path (or click the folder button)',
     'placeholder.browse': 'Click button to select folder',
   }
 };
 
 let currentLang = 'zh';
+
+function getPromptSizeByType(type) {
+  const preset = {
+    wechat: { width: 900, height: 383 },         // 微信封面常用比例
+    xiaohongshu: { width: 1080, height: 1440 },  // 小红书图文 3:4
+    performance: { width: 1080, height: 1440 },  // 演出海报 3:4
+    corporate: { width: 1200, height: 675 },     // 企业宣传 16:9
+    custom: { width: 780 },                      // 自定义维持原默认宽度
+  };
+  return preset[type] || preset.custom;
+}
+
+function refreshTypeTexts() {
+  document.querySelectorAll('.type-option').forEach(opt => {
+    const span = opt.querySelector('span');
+    const key = 'type.' + (opt.dataset.type || 'default');
+    if (span && I18N[currentLang] && I18N[currentLang][key]) {
+      span.textContent = I18N[currentLang][key];
+    }
+  });
+
+  const label = document.getElementById('typeLabel');
+  const key = 'type.' + (selectedType || 'default');
+  if (label) {
+    label.textContent = (I18N[currentLang] && I18N[currentLang][key])
+      ? I18N[currentLang][key]
+      : (I18N[currentLang]['type.btn'] || 'Type');
+  }
+}
 
 function setLang(lang) {
   currentLang = lang;
@@ -334,34 +367,7 @@ function setLang(lang) {
   // 更新 loading 文字
   const learnText = document.querySelector('#learnBar [data-i18n]');
   if (learnText) learnText.textContent = I18N[lang]['status.learning'];
-}
-
-// ===== 加载动态瀑布流背景 =====
-async function loadPosterBg() {
-  try {
-    const res = await fetch('/api/list');
-    const data = await res.json();
-    if (!data.posters || data.posters.length === 0) return;
-    
-    const inner = document.getElementById('posterBgInner');
-    const posters = data.posters;
-    const cols = 6;
-    
-    let html = '';
-    for (let c = 0; c < cols; c++) {
-      html += '<div class="poster-bg-col">';
-      for (let rep = 0; rep < 3; rep++) {
-        for (let i = 0; i < posters.length; i++) {
-          if (i % cols === c) {
-            const p = posters[i];
-            html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png?thumb=1" loading="lazy"></div>';
-          }
-        }
-      }
-      html += '</div>';
-    }
-    inner.innerHTML = html;
-  } catch(e) { console.log('背景加载失败:', e.message); }
+  refreshTypeTexts();
 }
 
 // ===== 页面初始化 =====
@@ -376,7 +382,6 @@ async function loadPosterBg() {
   loadPosterBg();
 })();
 
-// ===== 动态海报瀑布流背景 =====
 async function loadPosterBg() {
   try {
     const res = await fetch('/api/list');
@@ -384,14 +389,32 @@ async function loadPosterBg() {
     if (!data.posters || data.posters.length === 0) return;
     
     const inner = document.getElementById('posterBgInner');
-    // 只取最新的 20 张，随机排列
-    const posters = data.posters.slice(0, 20).sort(() => Math.random() - 0.5);
-    // 复制两份，实现无缝滚动
-    const all = [...posters, ...posters];
-    
-    inner.innerHTML = all.map(p =>
-      '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png?thumb=1" loading="lazy" alt=""></div>'
-    ).join('');
+    const posters = data.posters.slice(0, 18);
+    // 根据海报原始宽度（780px）计算列数
+    const posterWidth = 780;
+    const cols = Math.max(2, Math.min(4, Math.ceil((window.innerWidth || 1200) / posterWidth)));
+    const columns = Array.from({ length: cols }, () => []);
+
+    // 横向分发，再在每列重复，形成无缝向上滚动
+    posters.forEach((p, idx) => {
+      columns[idx % cols].push(p);
+    });
+
+    let html = '';
+    columns.forEach((col, i) => {
+      const safeCol = col.length ? col : posters.slice(0, Math.min(3, posters.length));
+      const stream = [...safeCol, ...safeCol, ...safeCol];
+      const duration = 60 + (i % 3) * 15;
+      const delay = -1 * Math.floor(Math.random() * duration * 0.6);
+
+      html += '<div class="poster-bg-col" style="--flow-duration:' + duration + 's;--flow-delay:' + delay + 's">';
+      stream.forEach(p => {
+        // 使用原始图片，保持完整尺寸
+        html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
+      });
+      html += '</div>';
+    });
+    inner.innerHTML = html;
   } catch(e) {
     console.log('背景海报加载失败:', e.message);
   }
@@ -435,37 +458,294 @@ function onFolderSelected(fileInput) {
   }
 }
 
+function toggleTypeMenu() {
+  const menu = document.getElementById('typeMenu');
+  refreshTypeTexts();
+  menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function selectType(type) {
+  selectedType = type;
+  refreshTypeTexts();
+  document.querySelectorAll('.type-option').forEach(opt => {
+    opt.classList.toggle('active', opt.dataset.type === type);
+  });
+  document.getElementById('typeMenu').style.display = 'none';
+}
+
+function onImageSelected(input) {
+  // handle image selection
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.type-select-wrapper')) {
+    const menu = document.getElementById('typeMenu');
+    if (menu) menu.style.display = 'none';
+  }
+});
+
+// 绑定类型选择事件
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('typeBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleTypeMenu();
+  });
+  document.querySelectorAll('.type-option').forEach(function(opt) {
+    opt.addEventListener('click', function(e) {
+      e.stopPropagation();
+      selectType(this.dataset.type);
+    });
+  });
+});
+
+function setHeaderCompressed(shouldCompress) {
+  if (isHeaderCompressed === shouldCompress) return;
+  isHeaderCompressed = shouldCompress;
+  document.body.classList.toggle('header-compressed', shouldCompress);
+}
+
+window.addEventListener('scroll', function() {
+  if (!isPosterFocusMode) return;
+  if (scrollTicking) return;
+  scrollTicking = true;
+
+  requestAnimationFrame(() => {
+    const y = window.scrollY || window.pageYOffset || 0;
+    const delta = y - lastScrollY;
+
+    // 阈值 + 回差，避免滚轮微抖导致频繁切换
+    if (y <= 24) {
+      setHeaderCompressed(false);
+    } else if (delta < -8) {
+      setHeaderCompressed(true);
+    } else if (delta > 12) {
+      setHeaderCompressed(false);
+    }
+
+    lastScrollY = y;
+    scrollTicking = false;
+  });
+}, { passive: true });
+
+function enablePosterFocusMode() {
+  const result = document.getElementById('result');
+  if (!result || !result.classList.contains('visible')) return;
+
+  const body = document.body;
+  isPosterFocusMode = true;
+  body.classList.add('poster-focus-mode');
+  setHeaderCompressed(false);
+  lastScrollY = window.scrollY || window.pageYOffset || 0;
+
+  const targetTop = Math.max(0, result.offsetTop - 26);
+  window.scrollTo({ top: targetTop, behavior: 'smooth' });
+
+  setTimeout(() => {
+    if (!isPosterFocusMode) return;
+    setHeaderCompressed(true);
+    lastScrollY = window.scrollY || window.pageYOffset || 0;
+  }, 520);
+}
+
+function resetPosterFocusMode() {
+  isPosterFocusMode = false;
+  isHeaderCompressed = false;
+  scrollTicking = false;
+  document.body.classList.remove('poster-focus-mode', 'header-compressed');
+}
+
+function formatI18n(key, vars = {}) {
+  let text = (I18N[currentLang] && I18N[currentLang][key]) || key;
+  Object.keys(vars).forEach(k => {
+    text = text.replace(new RegExp('\\{' + k + '\\}', 'g'), String(vars[k]));
+  });
+  return text;
+}
+
+async function getActiveModelName() {
+  try {
+    const res = await fetch('/api/settings');
+    const data = await res.json();
+    const m = data && data.settings && data.settings.llmModel;
+    if (m) return m;
+  } catch (e) {
+    // ignore
+  }
+  return 'LLM';
+}
+
+function stopLoadingStatus() {
+  if (loadingTimer) {
+    clearInterval(loadingTimer);
+    loadingTimer = null;
+  }
+  if (progressPollingTimer) {
+    clearInterval(progressPollingTimer);
+    progressPollingTimer = null;
+  }
+  loadingRerender = null;
+  const loadingText = document.querySelector('.loading-text');
+  if (loadingText) loadingText.textContent = I18N[currentLang]['status.generating'];
+}
+
+function stageToI18nKey(stage, usePromptApi) {
+  const m = {
+    received: 'status.step.prepare',
+    fetch_github: 'status.step.fetch',
+    scan_local: 'status.step.fetch',
+    llm_analyzing: usePromptApi ? 'status.step.promptLlm' : 'status.step.llm',
+    prompt_llm: 'status.step.promptLlm',
+    planning_content: 'status.step.promptLlm',
+    fallback_rules: 'status.step.html',
+    auditing_html: 'status.step.audit',
+    repairing_html: 'status.step.repair',
+    building_html: 'status.step.html',
+    rendering_png: 'status.step.export',
+    done: 'status.step.export',
+    error: 'status.step.export'
+  };
+  return m[stage] || (usePromptApi ? 'status.step.promptLlm' : 'status.step.llm');
+}
+
+function startLoadingStatus(usePromptApi, progressId) {
+  stopLoadingStatus();
+  const loadingText = document.querySelector('.loading-text');
+  if (!loadingText) return;
+
+  let tick = 0;
+  let modelName = 'LLM';
+  let stage = 'received';
+
+  loadingRerender = () => {
+    const key = stageToI18nKey(stage, usePromptApi);
+    const base = formatI18n(key, { model: modelName });
+    const dots = '.'.repeat((tick % 3) + 1);
+    loadingText.textContent = base + dots;
+  };
+
+  loadingRerender();
+  getActiveModelName().then(m => {
+    modelName = m || 'LLM';
+    if (loadingRerender) loadingRerender();
+  });
+
+  loadingTimer = setInterval(() => {
+    tick += 1;
+    if (loadingRerender) loadingRerender();
+  }, 550);
+
+  if (progressId) {
+    progressPollingTimer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/progress/' + encodeURIComponent(progressId) + '?t=' + Date.now());
+        if (!res.ok) return;
+        const data = await res.json();
+        const p = data && data.progress ? data.progress : null;
+        if (!p) return;
+        if (p.stage) stage = p.stage;
+        if (p.model) modelName = p.model;
+        if (loadingRerender) loadingRerender();
+        if (p.stage === 'done' || p.stage === 'error') {
+          clearInterval(progressPollingTimer);
+          progressPollingTimer = null;
+        }
+      } catch (e) {
+        // ignore polling errors
+      }
+    }, 350);
+  }
+}
+
+
 async function generate() {
+  // 如果正在生成，点击则停止
+  if (isGenerating) {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+    }
+    stopLoadingStatus();
+    const btn = document.getElementById('generateBtn');
+    if (btn) btn.disabled = false;
+    const btnText = document.querySelector('#generateBtn [data-i18n]');
+    if (btnText) btnText.textContent = I18N[currentLang]['btn.generate'];
+    document.getElementById('loading').classList.remove('visible');
+    isGenerating = false;
+    return;
+  }
+
   const input = document.getElementById('nlInput');
   let nl = input.value.trim();
   
   if (!nl) return;
+  resetPosterFocusMode();
 
   const btn = document.getElementById('generateBtn');
+  if (!btn) {
+    alert((I18N[currentLang] && I18N[currentLang]['error.failed']) || '生成失败');
+    return;
+  }
+  
+  isGenerating = true;
+  currentAbortController = new AbortController();
   btn.disabled = true;
   const btnText = document.querySelector('#generateBtn [data-i18n]');
-  btnText.textContent = I18N[currentLang]['btn.generate.loading'];
+  if (btnText) btnText.textContent = I18N[currentLang]?.['btn.generate.stop'] || '停止';
+  const learnBar = document.getElementById('learnBar');
   document.getElementById('loading').classList.add('visible');
   document.getElementById('result').classList.remove('visible');
-  document.getElementById('learnBar').style.display = 'none';
+  if (learnBar) learnBar.style.display = 'none';
 
   if (nl.includes('github.com')) {
-    document.getElementById('learnBar').style.display = 'flex';
+    if (learnBar) learnBar.style.display = 'flex';
   }
 
   try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nl, lang: currentLang, inputType })
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
+    const usePromptApi = !!selectedType;
+    const progressId = 'pg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    startLoadingStatus(usePromptApi, progressId);
+    if (usePromptApi && learnBar) learnBar.style.display = 'flex';
 
-    currentPosterId = data.posterId;
-    document.getElementById('resultImg').src = '/api/poster/' + data.posterId + '.png?t=' + Date.now();
+    async function postJson(url, payloadBody, signal) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadBody),
+        signal  // AbortController signal
+      });
+      return res.json();
+    }
+
+    let data;
+    if (usePromptApi) {
+      const sizePreset = getPromptSizeByType(selectedType);
+      // 目录名可能很短（如 "AI"），补充成完整指令，避免 prompt 长度校验失败
+      const promptText = nl.length >= 3 ? nl : ('请根据项目信息生成一张' + (document.getElementById('typeLabel')?.textContent || '指定风格') + '海报：' + nl);
+      data = await postJson('/api/prompt', {
+        prompt: promptText,
+        type: selectedType,
+        lang: currentLang,
+        width: sizePreset.width,
+        height: sizePreset.height,
+        _progressId: progressId
+      }, currentAbortController.signal);
+      if (!data.ok) {
+        // 类型模式必须走 /api/prompt，避免静默回退导致比例不生效
+        throw new Error(data.error || '该类型生成失败，请重试或切回默认类型');
+      }
+    } else {
+      data = await postJson('/api/generate', { nl, lang: currentLang, inputType, _progressId: progressId }, currentAbortController.signal);
+    }
+    if (!data.ok) throw new Error(data.error || '生成失败');
+
+    const posterId = data.posterId || (data.meta && data.meta.id);
+    if (!posterId) throw new Error('posterId missing');
+
+    currentPosterId = posterId;
+    document.getElementById('resultImg').src = '/api/poster/' + posterId + '.png?t=' + Date.now();
     document.getElementById('result').classList.add('visible');
-    document.getElementById('learnBar').style.display = 'none';
+    enablePosterFocusMode();
+    if (learnBar) learnBar.style.display = 'none';
 
     // 显示警告
     const warningsDiv = document.getElementById('warnings');
@@ -477,7 +757,7 @@ async function generate() {
       warningsDiv.style.display = 'none';
     }
 
-    if (data.github) {
+    if (!usePromptApi && data.github) {
       document.getElementById('githubBar').style.display = 'block';
       const repoName = data.github.replace('https://github.com/', '');
       const starsText = data.stars ? ' · ' + data.stars + ' stars' : '';
@@ -487,11 +767,20 @@ async function generate() {
       document.getElementById('githubBar').style.display = 'none';
     }
   } catch(e) {
-    alert(I18N[currentLang]['error.failed'] + ': ' + e.message);
+    if (e.name === 'AbortError') {
+      // 用户主动停止
+      console.log('生成已停止');
+    } else {
+      alert(I18N[currentLang]['error.failed'] + ': ' + e.message);
+    }
   } finally {
-    btn.disabled = false;
-    btnText.textContent = I18N[currentLang]['btn.generate'];
+    stopLoadingStatus();
+    if (btn) btn.disabled = false;
+    const btnText = document.querySelector('#generateBtn [data-i18n]');
+    if (btnText) btnText.textContent = I18N[currentLang]['btn.generate'];
     document.getElementById('loading').classList.remove('visible');
+    isGenerating = false;
+    currentAbortController = null;
   }
 }
 
@@ -509,11 +798,13 @@ function downloadPng() {
   a.click();
 }
 
-function copyLink() {
+function copyLink(evt) {
   const link = location.origin + '/web/gallery.html?id=' + currentPosterId + '&lang=' + currentLang;
   navigator.clipboard.writeText(link).then(() => {
-    const btn = event.target.closest('.action-btn');
+    const btn = evt && evt.target ? evt.target.closest('.action-btn') : null;
+    if (!btn) return;
     const span = btn.querySelector('span');
+    if (!span) return;
     const orig = span.textContent;
     span.textContent = I18N[currentLang]['btn.copied'];
     setTimeout(() => span.textContent = orig, 1500);
@@ -534,7 +825,8 @@ function copyText(el, text) {
 function copyInstallCmd() {
   const cmd = document.getElementById('installCmd').textContent;
   navigator.clipboard.writeText(cmd).then(() => {
-    const btn = document.querySelector('.oc-install-copy');
+    const btn = document.querySelector('.oc-bar-copy');
+    if (!btn) return;
     btn.textContent = I18N[currentLang]['btn.copied'];
     setTimeout(() => btn.textContent = I18N[currentLang]['btn.copy'], 1500);
   });
@@ -546,7 +838,7 @@ function showOpenClaw() {
   const title = isGitHub ? (nl.match(/github\.com[/:]([^/]+)\/([^/.]+)/)?.[2] || 'my-project') : (nl || 'my-project');
   const owner = isGitHub ? (nl.match(/github\.com[/:]([^/]+)\/([^/.]+)/)?.[1] || '') : '';
   const repo = isGitHub ? (nl.match(/github\.com[/:]([^/]+)\/([^/.]+)/)?.[2] || title) : title;
-  const installCmd = owner && repo ? 'git clone https://github.com/' + owner + '/' + repo + '.git ~/.openclaw/workspace/skills/' + repo : null;
+  const installCmd = owner && repo ? 'mkdir -p ~/.openclaw/workspace/skills && git clone https://github.com/' + owner + '/' + repo + '.git ~/.openclaw/workspace/skills/' + repo : null;
   const localCmd = 'git clone ' + (nl || 'https://github.com/your/project') + ' && cd poster-hub && npm install && node server.js';
 
   const skillMd = [
@@ -573,7 +865,7 @@ function showOpenClaw() {
     '## 🤝 OpenClaw 接入',
     '',
     '```bash',
-    'git clone https://github.com/' + (owner || 'YaoIsAI') + '/' + (repo || 'poster-hub') + '.git ~/.openclaw/workspace/skills/' + (repo || 'poster-hub'),
+    'mkdir -p ~/.openclaw/workspace/skills && git clone https://github.com/' + (owner || 'YaoIsAI') + '/' + (repo || 'poster-hub') + '.git ~/.openclaw/workspace/skills/' + (repo || 'poster-hub'),
     '```',
     '',
     '## 📄 项目地址',
