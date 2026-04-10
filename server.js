@@ -1472,7 +1472,8 @@ function validatePosterHTML(html, sourceData) {
 
   // API: 删除海报
   if (req.method === 'DELETE' && pathname.startsWith('/api/poster/')) {
-    const id = pathname.split('/')[3];
+    const match = pathname.match(/^\/api\/poster\/([^/]+)$/);
+    const id = match ? match[1] : null;
     if (!id) {
       json(res, 400, { ok: false, error: 'Missing poster ID' });
       return;
