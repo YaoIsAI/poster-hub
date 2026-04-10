@@ -16,11 +16,10 @@
       opacity: 0.64;
     }
     #posterBgInner {
-      display: grid;
-      grid-template-columns: repeat(6, 180px);
-      gap: 12px;
+      display: block;
+      position: relative;
+      min-height: 100vh;
       padding: 0 20px;
-      justify-content: center;
       animation: posterFlowUp 180s linear infinite;
       overflow: hidden;
     }
@@ -32,6 +31,7 @@
       display: none;
     }
     .poster-bg-item {
+      position: absolute;
       border-radius: 8px;
       overflow: hidden;
       opacity: 0.6;
@@ -388,18 +388,78 @@ async function loadPosterBg() {
     const inner = document.getElementById('posterBgInner');
     const posters = data.posters.slice(0, 30);
     
-    // 每行6个海报
-    const COLS_PER_ROW = 6;
-    let html = '';
+    const ITEM_WIDTH = 180;
+    const GAP = 12;
+    const containerWidth = window.innerWidth - 40;
+    const cols = Math.max(2, Math.min(6, Math.floor(containerWidth / (ITEM_WIDTH + GAP)));
+    const totalWidth = cols * ITEM_WIDTH + (cols - 1) * GAP;
+    const startX = (containerWidth - totalWidth) / 2;
     
+    // 计算海报预估高度（基于780宽度，平均高度约1000-1500px，按比例缩放）
+    const aspectRatio = 780 / 1200; // 宽高比
+    const estimatedHeight = Math.round(ITEM_WIDTH / aspectRatio);
+    
+    // 初始化每列高度
+    const colHeights = Array(cols).fill(0);
+    
+    let html = '';
     posters.forEach((p, i) => {
-      html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
+      // 找到最短的列
+      const shortestCol = colHeights.indexOf(Math.min(...colHeights));
+      const x = startX + shortestCol * (ITEM_WIDTH + GAP);
+      const y = colHeights[shortestCol];
+      
+      html += '<div class="poster-bg-item" id="pbi-' + i + '" style="left:' + x + 'px;top:' + y + 'px;width:' + ITEM_WIDTH + 'px"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt="" onload="updateMasonryHeight(' + i + ', this.offsetHeight)"></div>';
+      
+      colHeights[shortestCol] += estimatedHeight + GAP;
     });
     
+    // 设置容器高度
+    const maxHeight = Math.max(...colHeights);
+    inner.style.height = maxHeight + 'px';
     inner.innerHTML = html;
+    
+    // 更新实际高度
+    window.masonryColHeights = colHeights;
+    window.masonryItemWidth = ITEM_WIDTH;
+    window.masonryGap = GAP;
+    window.masonryStartX = startX;
   } catch(e) {
     console.log('背景海报加载失败:', e.message);
   }
+}
+
+// 更新单个海报的实际高度
+function updateMasonryHeight(index, actualHeight) {
+  if (!window.masonryColHeights) return;
+  const item = document.getElementById('pbi-' + index);
+  if (!item) return;
+  
+  const ITEM_WIDTH = window.masonryItemWidth;
+  const GAP = window.masonryGap;
+  const containerWidth = window.innerWidth - 40;
+  const cols = Math.max(2, Math.min(6, Math.floor(containerWidth / (ITEM_WIDTH + GAP)));
+  const startX = window.masonryStartX;
+  
+  // 重新计算列分配
+  const colHeights = Array(cols).fill(0);
+  const items = document.querySelectorAll('.poster-bg-item');
+  
+  items.forEach((el, i) => {
+    const shortestCol = colHeights.indexOf(Math.min(...colHeights));
+    const x = startX + shortestCol * (ITEM_WIDTH + GAP);
+    const y = colHeights[shortestCol];
+    const h = el.querySelector('img').offsetHeight;
+    
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    colHeights[shortestCol] += h + GAP;
+  });
+  
+  // 更新容器高度
+  const inner = document.getElementById('posterBgInner');
+  const maxHeight = Math.max(...colHeights);
+  inner.style.height = maxHeight + 'px';
 }
 
 // ===== 核心逻辑 =====
