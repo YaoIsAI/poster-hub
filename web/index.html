@@ -384,16 +384,43 @@ function setLang(lang) {
 })();
 
 // Safari 修复：页面重新可见时恢复动画
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'visible') {
+(function() {
+  let lastTime = 0;
+  let ticking = false;
+  
+  function resumeAnimation() {
     const inner = document.getElementById('posterBgInner');
     if (inner) {
       inner.style.animation = 'none';
-      inner.offsetHeight; // 触发重排
+      inner.style.display = 'none';
+      inner.offsetHeight;
+      inner.style.display = '';
       inner.style.animation = '';
     }
   }
-});
+  
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+      if (!ticking) {
+        requestAnimationFrame(function() {
+          resumeAnimation();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+  });
+  
+  // Safari fallback：定期检查动画状态
+  setInterval(function() {
+    if (document.visibilityState === 'visible') {
+      const inner = document.getElementById('posterBgInner');
+      if (inner && inner.style.animation === 'none') {
+        resumeAnimation();
+      }
+    }
+  }, 1000);
+})();
 
 async function loadPosterBg() {
   try {
