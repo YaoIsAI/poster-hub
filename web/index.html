@@ -16,40 +16,33 @@
       opacity: 0.64;
     }
     #posterBgInner {
-      display: flex;
-      gap: 12px;
+      column-count: 6;
+      column-gap: 12px;
       padding: 0 20px;
-      justify-content: center;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      box-sizing: border-box;
+      animation: posterFlowUp 120s linear infinite;
       overflow: hidden;
-      height: 100vh;
-      align-items: flex-start;
     }
     @keyframes posterFlowUp {
       0% { transform: translateY(0); }
       100% { transform: translateY(-50%); }
     }
     .poster-bg-col {
-      width: 180px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      animation: posterFlowUp 60s linear infinite;
-      will-change: transform;
+      display: none;
     }
-    .poster-bg-col:nth-child(2) { animation-duration: 70s; }
-    .poster-bg-col:nth-child(3) { animation-duration: 55s; }
-    .poster-bg-col:nth-child(4) { animation-duration: 65s; }
-    .poster-bg-col:nth-child(5) { animation-duration: 75s; }
-    .poster-bg-col:nth-child(6) { animation-duration: 58s; }
     .poster-bg-item {
+      break-inside: avoid;
+      margin-bottom: 12px;
       border-radius: 8px;
       overflow: hidden;
       opacity: 0.6;
       background: #f0f0f0;
-      flex-shrink: 0;
     }
     .poster-bg-item img {
-      width: 180px;
+      width: 100%;
       height: auto;
       display: block;
       border-radius: 8px;
@@ -399,31 +392,10 @@ async function loadPosterBg() {
     const inner = document.getElementById('posterBgInner');
     const posters = data.posters.slice(0, 30);
     
-    const ITEM_WIDTH = 180;
-    const GAP = 12;
-    const containerWidth = window.innerWidth - 40;
-    const cols = Math.max(2, Math.min(6, Math.floor(containerWidth / (ITEM_WIDTH + GAP))));
-    
-    // 真正的瀑布流：分配到最短的列
-    const colHeights = Array(cols).fill(0);
-    const columns = Array.from({ length: cols }, () => []);
-    
-    posters.forEach((p) => {
-      const shortestCol = colHeights.indexOf(Math.min(...colHeights));
-      columns[shortestCol].push(p);
-      colHeights[shortestCol] += 250 + GAP; // 预估高度
-    });
-    
+    // 按顺序生成所有海报
     let html = '';
-    columns.forEach((col, colIdx) => {
-      html += '<div class="poster-bg-col">';
-      // 重复2次确保无缝滚动
-      for (let r = 0; r < 2; r++) {
-        col.forEach(p => {
-          html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
-        });
-      }
-      html += '</div>';
+    posters.forEach(p => {
+      html += '<div class="poster-bg-item"><img src="/api/poster/' + p.id + '.png" loading="lazy" alt=""></div>';
     });
     
     inner.innerHTML = html;
