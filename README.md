@@ -64,13 +64,15 @@ PosterHub 采用本地优先的双端协作结构：
 ## ✨ 特性
 
 - 🤖 **AI 驱动**：输入任意项目，自动分析并生成海报
+- 📖 **GitHub README 深度分析**：优先读取仓库 README / README_EN 并用 LLM 提炼标题、亮点与模块
 - 📁 **本地项目分析**：扫描本地目录并结合 LLM 提取内容
 - 🧩 **双生成链路**：`POST /api/generate`（项目海报）+ `POST /api/prompt`（风格海报）
 - 🔁 **闭环审查**：`/api/prompt` 采用“规划 -> 生成 -> 审查 -> 自动纠偏 -> 再审查”流程，审查通过后才导出 PNG
+- 🧪 **双层 Harness 校验**：内容验证器 + HTML 结构验证器，区分硬错误与软偏差
 - 🌐 **中英双语**：界面与海报内容支持中文/英文
 - 🪄 **多风格类型**：`wechat` / `xiaohongshu` / `performance` / `corporate` / `custom`
 - 📱 **高清导出**：原生 780px 宽，高清 PNG 输出
-- ⚙️ **设置页能力**：内置 LLM 连通性测试、模型列表刷新与选择
+- ⚙️ **设置页能力**：内置 LLM 连通性测试、模型列表刷新/选择、候选地址提示与错误诊断摘要
 - 🖥️ **Web 界面**：浏览器直接使用
 - 🔗 **GitHub 集成**：自动获取仓库信息
 - ⚡ **本地运行**：克隆即用，依赖精简
@@ -236,13 +238,18 @@ poster-hub/
 ├── README.md             # 中文文档
 ├── README_EN.md          # 英文文档
 ├── server.js             # HTTP API 服务（3008）
+├── github-utils.js       # GitHub API + DESIGN.md 获取与解析
+├── poster-validator.js   # 海报内容验证 / Harness 问题分级
 ├── generator.js          # 项目海报 HTML/CSS 生成引擎
-├── prompt-generator.js   # 通用风格海报生成器
+├── prompt-generator.js   # 通用风格海报生成器 + 结构验证
 ├── design-system.js      # 设计 token / 设计规范解析器
 ├── poster-generator.js   # 自适应 CSS 海报生成器
-├── screenshot.js         # Chromium 全页截图输出 PNG
-├── local-llm.js          # OpenAI 兼容 LLM 项目分析
+├── screenshot.js         # Chromium / Playwright 全页截图输出 PNG
+├── local-llm.js          # 本地目录分析 + GitHub README LLM 分析
 ├── generate-poster.js    # CLI 工具
+├── Dockerfile            # Docker 镜像构建（含 curl / wget 等依赖）
+├── docker-compose.yml    # Docker Compose 部署示例
+├── DEPLOY.md             # 部署说明
 ├── web/
 │   ├── index.html        # 生成器页面
 │   ├── gallery.html      # 历史海报画廊
@@ -255,12 +262,16 @@ poster-hub/
 
 | 文件 | 职责 |
 |------|------|
-| `server.js` | HTTP API、路由、GitHub API 调用 |
+| `server.js` | HTTP API、路由、设置保存、连通性诊断、任务进度 |
+| `github-utils.js` | GitHub 仓库信息、README、SKILL.md、DESIGN.md 获取与模板匹配 |
+| `poster-validator.js` | 海报内容验证、Harness issue 分级与汇总 |
 | `generator.js` | 项目海报生成、主题系统、i18n |
-| `local-llm.js` | 本地项目 LLM 分析 |
+| `prompt-generator.js` | 通用海报生成、类型列表、HTML 结构验证 |
+| `local-llm.js` | 本地项目 LLM 分析 + GitHub README LLM 分析 |
 | `screenshot.js` | 全页 PNG 截图 |
 | `web/index.html` | 生成器 UI |
 | `web/gallery.html` | 历史海报画廊 |
+| `web/settings.html` | LLM / GitHub 设置页与诊断 UI |
 
 ---
 
@@ -332,6 +343,11 @@ GET /api/models
 GET /api/progress/:progressId
 ```
 
+说明：
+- `POST /api/settings/test` 返回 `reachable`、`modelFound`、`modelsPreview`、`endpoint`、`message`
+- `GET /api/models` 额外返回 `details`、`tried`、`suggestedBaseUrl`、`autoDiscovered`
+- 设置页默认展示摘要错误信息，详细诊断字段由 API 返回
+
 详见 [docs/API.md](docs/API.md)
 
 ---
@@ -381,10 +397,10 @@ cp .env.example .env
 # 编辑 .env 填入你的配置
 
 # 启动服务
-docker-compose up -d
+docker compose up -d
 
 # 查看日志
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### 使用现有镜像
@@ -392,7 +408,7 @@ docker-compose logs -f
 ```bash
 # 仅使用 docker-compose.yml（使用预构建镜像）
 wget https://raw.githubusercontent.com/YaoIsAI/poster-hub/main/docker-compose.yml
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 环境变量
@@ -401,7 +417,7 @@ docker-compose up -d
 |------|------|--------|
 | `GITHUB_TOKEN` | GitHub API Token | 无 |
 | `LLM_API_KEY` | OpenAI 兼容 API Key | 无 |
-| `LLM_BASE_URL` | LLM API 端点 | MiniMax |
+| `LLM_BASE_URL` | LLM API 端点（支持 OpenAI 兼容接口 / Ollama） | MiniMax |
 | `LLM_MODEL` | LLM 模型名 | MiniMax-M2.1 |
 | `PORT` | 服务端口 | `3008` |
 
@@ -409,11 +425,16 @@ docker-compose up -d
 
 ```bash
 # 在绿联 NAS 上
-ssh user@192.168.31.85 -p 2222
+ssh user@YOUR_NAS_IP -p 2222
 mkdir -p ~/poster-hub && cd ~/poster-hub
 # 上传 docker-compose.yml
-docker-compose up -d
+docker compose up -d
 ```
+
+提示：
+- `docker-compose.yml` 默认映射端口为 `30008:3008`
+- Docker 镜像已包含 `curl`，便于连通性测试在 `fetch` 失败时使用 fallback
+- 若使用局域网 Ollama，请确认容器网络可以访问 `LLM_BASE_URL`
 
 ### 健康检查
 
@@ -456,6 +477,13 @@ cp .env.example .env
 
 **Q: 海报内容太简略？**  
 建议配置 `LLM_API_KEY` 以启用完整 AI 分析。
+
+**Q: 设置页提示无法连接 LLM / 无模型列表？**  
+先在设置页点击“测试 LLM 连通性”。如果是 Ollama：
+- 确认 `LLM_BASE_URL` 写法为 `http://host:11434/v1`
+- 确认目标地址的 `/api/tags` 可访问
+- Docker 部署场景下确认容器网络也能访问该地址
+- 若接口可达但无模型，请先在 Ollama 中拉取模型
 
 **Q: 生成图片为空白？**  
 安装 Chromium：`npx @sparticuz/chromium install`

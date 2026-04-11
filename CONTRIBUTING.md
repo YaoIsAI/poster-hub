@@ -35,7 +35,7 @@
 2. **Clone** 你的 Fork
 3. **安装依赖** - `npm install`（会通过 postinstall 自动安装 Chromium）
 4. **创建分支** - `git checkout -b feature/your-feature-name`
-5. **开发 & 测试** - `node server.js` 测试 API
+5. **开发 & 测试** - `node server.js` 测试 API、设置页与海报生成链路
 6. **提交** - `git commit -m "feat: add new feature"`
 7. **打开 Pull Request**
 
@@ -43,6 +43,7 @@
 
 - 使用 2 空格缩进
 - 运行 `node server.js` 自测通过后再提交
+- 如修改 Docker 连通性逻辑，请同步验证 `Dockerfile` / `docker-compose.yml` / 设置页诊断文案
 - PR 描述清楚改动内容和原因
 
 ---
@@ -86,7 +87,7 @@ Please describe:
 2. **Clone** your fork
 3. **Install dependencies** - `npm install` (Chromium is installed in postinstall)
 4. **Create a branch** - `git checkout -b feature/your-feature-name`
-5. **Develop & test** - run `node server.js` and verify API behavior
+5. **Develop & test** - run `node server.js` and verify API behavior, settings UI, and poster generation flow
 6. **Commit** - `git commit -m "feat: add new feature"`
 7. **Open a Pull Request**
 
@@ -94,6 +95,7 @@ Please describe:
 
 - Use 2-space indentation
 - Self-test with `node server.js` before submitting
+- If you change Docker connectivity behavior, also verify `Dockerfile`, `docker-compose.yml`, and settings diagnostics copy
 - Explain what changed and why in PR description
 
 ---

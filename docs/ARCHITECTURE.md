@@ -36,11 +36,13 @@ GitHub URL / 本地路径 / 项目描述
            ↓
      server.js (API 路由)
            ↓
-     GitHub API / 本地文件扫描
+ github-utils.js / 本地文件扫描
            ↓
-     local-llm.js (AI 分析)
+ local-llm.js (本地目录 / GitHub README 分析)
            ↓
-    generator.js (HTML 生成)
+ generator.js / prompt-generator.js
+           ↓
+ poster-validator.js / validatePosterStructure()
            ↓
    screenshot.js (Playwright 截图)
            ↓
@@ -51,21 +53,24 @@ GitHub URL / 本地路径 / 项目描述
 
 | 模块 | 职责 | 入口 |
 |------|------|------|
-| `server.js` | HTTP API、路由、GitHub API 调用 | `node server.js` |
+| `server.js` | HTTP API、路由、设置读写、连通性诊断、进度同步 | `node server.js` |
+| `github-utils.js` | GitHub 仓库信息、README、SKILL.md、DESIGN.md 获取与模板匹配 | 被 server.js 调用 |
+| `poster-validator.js` | 海报内容验证、Harness 问题分级、硬/软错误汇总 | 被 server.js 调用 |
 | `generator.js` | 海报 HTML/CSS 生成、主题系统、i18n | 被 server.js 调用 |
-| `local-llm.js` | 调用 OpenAI 兼容 LLM 分析项目 | 被 server.js 调用 |
-| `prompt-generator.js` | 通用海报生成（按类型风格） | 被 server.js 调用 |
+| `local-llm.js` | 调用 OpenAI 兼容 LLM 分析本地项目与 GitHub README | 被 server.js 调用 |
+| `prompt-generator.js` | 通用海报生成（按类型风格）+ HTML 结构验证 | 被 server.js 调用 |
 | `screenshot.js` | Chromium 全页截图输出 PNG | 被 server.js 调用 |
 | `web/index.html` | 生成器 Web 界面 | 浏览器访问 |
 | `web/gallery.html` | 历史海报画廊 | 浏览器访问 |
+| `web/settings.html` | 设置页面、模型刷新、连通性测试 | 浏览器访问 |
 
 ## 海报生成流程
 
 1. **解析输入** → GitHub API / 本地文件扫描
-2. **AI 分析** → LLM 提取项目描述、技术栈、功能模块
+2. **AI 分析** → GitHub README LLM 分析或本地目录 LLM 分析，提取项目描述、技术栈、功能模块
 3. **内容规划（/api/prompt）** → 规划器输出结构化 plan JSON
 4. **构建 HTML** → 生成器按计划生成响应式 HTML
-5. **审查与纠偏** → 审查器比对“计划 vs HTML”，不一致自动纠偏重试
+5. **Harness 验证与纠偏** → 内容验证器 + 结构验证器联合校验，不一致自动纠偏重试；硬错误阻断，软偏差仅警告
 6. **渲染截图** → 审查通过后才进行 Playwright 截图
 7. **返回结果** → posterId + 下载链接
 
@@ -73,11 +78,24 @@ GitHub URL / 本地路径 / 项目描述
 
 - `POST /api/generate`：项目海报生成（GitHub / 本地路径 / 描述）
 - `POST /api/prompt`：通用海报生成（wechat/xiaohongshu/performance/corporate/custom）
+- `GET /api/settings` / `POST /api/settings`：读取或保存 `.env` 设置
+- `POST /api/settings/test`：测试 LLM 连通性（不保存）
+- `GET /api/models`：获取模型列表与诊断字段（设置页刷新）
 - `GET /api/progress/:progressId`：查询真实进度阶段（前端状态同步）
 - `GET /api/types`：返回通用海报类型列表
 - `GET /api/list`：返回历史海报列表（按时间倒序）
 - `GET /api/poster/:id.png`：下载海报
 - `GET /api/poster/:id/meta.json`：读取单张海报元数据
+
+### 设置页诊断链路
+
+1. 前端 `web/settings.html` 调用 `POST /api/settings/test`
+2. 服务端 `testLlmConnectivity()` 依次探测：
+   - Ollama: `/api/tags`、`/v1/models`、`/models`
+   - 通用 OpenAI 兼容接口：`/models`、`/v1/models`、`/model/list`
+3. 返回摘要字段：`message`
+4. 返回诊断字段：`details`、`tried`、`suggestedBaseUrl`
+5. 设置页默认展示用户友好提示，详细诊断由 API 提供
 
 ## 设计 Token 系统
 
@@ -151,11 +169,13 @@ GitHub URL / local path / prompt
            ↓
      server.js (API router)
            ↓
-   GitHub API / local file scan
+ github-utils.js / local file scan
            ↓
-    local-llm.js (AI analysis)
+ local-llm.js (local project / GitHub README analysis)
            ↓
-    generator.js (HTML build)
+ generator.js / prompt-generator.js
+           ↓
+ poster-validator.js / validatePosterStructure()
            ↓
  screenshot.js (Playwright render)
            ↓
@@ -166,21 +186,24 @@ GitHub URL / local path / prompt
 
 | Module | Responsibility | Entry |
 |------|------|------|
-| `server.js` | HTTP API, routing, GitHub API integration | `node server.js` |
+| `server.js` | HTTP API, routing, settings persistence, connectivity diagnostics, progress sync | `node server.js` |
+| `github-utils.js` | GitHub repo metadata, README, SKILL.md, DESIGN.md fetching and template matching | called by server |
+| `poster-validator.js` | Poster content validation, harness issue classification, hard/soft issue summary | called by server |
 | `generator.js` | Poster HTML/CSS generation, themes, i18n | called by server |
-| `local-llm.js` | OpenAI-compatible project analysis | called by server |
-| `prompt-generator.js` | Generic style-based poster generation | called by server |
+| `local-llm.js` | OpenAI-compatible local project analysis and GitHub README analysis | called by server |
+| `prompt-generator.js` | Generic style-based poster generation + HTML structure validation | called by server |
 | `screenshot.js` | Chromium full-page PNG capture | called by server |
 | `web/index.html` | Generator UI | browser |
 | `web/gallery.html` | Poster history gallery | browser |
+| `web/settings.html` | Settings page, model refresh, connectivity test | browser |
 
 ## Poster Generation Flow
 
 1. Parse input -> GitHub API or local project scan
-2. AI analysis -> extract description, stack, modules
+2. AI analysis -> extract description, stack, and modules from local project or GitHub README
 3. Planning (`/api/prompt`) -> planner outputs structured plan JSON
 4. Build HTML -> generator follows the plan
-5. Audit & Auto-repair -> compare plan vs HTML, retry correction if mismatch
+5. Harness validation & auto-repair -> content validator + structure validator, retry on hard issues, keep soft deviations as warnings
 6. Render screenshot -> capture only after audit passes
 7. Return response -> `posterId` and downloadable link
 
@@ -188,11 +211,24 @@ GitHub URL / local path / prompt
 
 - `POST /api/generate`: project poster generation
 - `POST /api/prompt`: generic style poster generation
+- `GET /api/settings` / `POST /api/settings`: read or save runtime settings
+- `POST /api/settings/test`: LLM connectivity probe without persisting config
+- `GET /api/models`: model list for settings UI, with diagnostics fields
 - `GET /api/progress/:progressId`: live progress stage for frontend synchronization
 - `GET /api/types`: list prompt types
 - `GET /api/list`: list poster history in reverse chronological order
 - `GET /api/poster/:id.png`: download poster image
 - `GET /api/poster/:id/meta.json`: read poster metadata
+
+### Settings Diagnostics Flow
+
+1. `web/settings.html` calls `POST /api/settings/test`
+2. `testLlmConnectivity()` probes:
+   - Ollama: `/api/tags`, `/v1/models`, `/models`
+   - Generic OpenAI-compatible APIs: `/models`, `/v1/models`, `/model/list`
+3. Server returns summary field `message`
+4. Server also returns diagnostics fields `details`, `tried`, and `suggestedBaseUrl`
+5. Settings UI shows user-friendly summaries and keeps detailed fields for debugging
 
 ## Design Token System
 

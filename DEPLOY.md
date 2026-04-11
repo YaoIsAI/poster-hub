@@ -1,114 +1,104 @@
 # PosterHub 部署文档
 
-> 本文档记录 PosterHub 项目的部署信息，由 OpenClaw 自动维护。
+> 当前部署说明与仓库内 `Dockerfile`、`docker-compose.yml` 和运行时行为保持一致。
 
 ---
 
-## 🐳 Docker 部署
+## 🐳 Docker Compose
 
-### 容器信息
+### 默认配置
 
 | 项目 | 值 |
 |------|-----|
-| **容器名** | poster-hub-app |
-| **镜像名** | poster-hub |
-| **外部端口** | 30008 |
-| **内部端口** | 3000 |
-| **重启策略** | unless-stopped |
+| 容器名 | `posterhub-app` |
+| 容器内部端口 | `3008` |
+| 宿主机映射端口 | `30008` |
+| 重启策略 | `unless-stopped` |
+| 健康检查 | `GET /api/health` |
 
-### 访问地址
+### 默认环境变量
 
-- **本地**: http://192.168.31.85:30008
-- **管理页面**: http://192.168.31.85:30008/admin
+`docker-compose.yml` 当前示例默认使用局域网 Ollama：
 
-### 数据目录
+```yaml
+environment:
+  - PORT=3008
+  - NODE_ENV=production
+  - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+  - LLM_API_KEY=ollama
+  - LLM_BASE_URL=http://YOUR_OLLAMA_IP:11434/v1
+  - LLM_MODEL=deepseek-r1:8b
+```
+
+### 启动
+
+```bash
+docker compose up -d --build
+```
+
+### 查看状态
+
+```bash
+docker compose ps
+docker compose logs -f
+curl http://localhost:30008/api/health
+```
+
+---
+
+## 📁 数据挂载
 
 | 宿主机 | 容器内 | 用途 |
 |--------|--------|------|
-| `/home/yao/poster-hub/posters` | `/app/posters` | 海报文件存储 |
+| `./posters` | `/app/posters` | 海报 HTML / PNG / 元数据 |
+| `./.env` | `/app/.env` | 运行时配置 |
 
 ---
 
-## 🖥️ NAS 服务器
-
-| 项目 | 值 |
-|------|-----|
-| **IP** | 192.168.31.85 |
-| **SSH 端口** | 2222 |
-| **用户名** | yao |
-| **密码** | Strike100 |
-
-### 常用命令
+## 🔄 更新部署流程
 
 ```bash
-# SSH 连接
-ssh -p 2222 yao@192.168.31.85
+# 1. 拉取最新代码
+git pull
 
-# 查看容器状态
-docker ps | grep poster
+# 2. 重新构建镜像并启动
+docker compose up -d --build
 
-# 查看日志
-docker logs -f poster-hub-app
+# 3. 检查日志
+docker compose logs -f
+```
 
-# 重启服务
-docker restart poster-hub-app
+如果仅修改了 `.env`，也建议重启容器以确保运行态一致：
 
-# 重新构建并部署
-cd /home/yao/poster-hub
-docker build -t poster-hub .
-docker stop poster-hub-app && docker rm poster-hub-app
-docker run -d --name poster-hub-app -p 30008:3000 -v /home/yao/poster-hub/posters:/app/posters --restart unless-stopped poster-hub
+```bash
+docker compose restart
 ```
 
 ---
 
-## 📁 项目结构
+## 🧪 LLM 诊断
 
-```
-poster-hub/
-├── web/                 # 前端文件
-│   └── index.html       # 主页面
-├── server.js            # 后端服务
-├── parser/              # 海报解析模块（GitHub API + 本地解析）
-├── posters/            # 海报存储（运行时生成）
-├── Dockerfile          # Docker 镜像构建
-├── .dockerignore        # Docker 构建忽略
-├── package.json
-└── DEPLOY.md           # 本文档
-```
+部署后建议打开：
 
----
+`http://<host>:30008/web/settings.html`
 
-## 🔧 更新部署流程
+检查：
 
-### 1. 本地开发更新
+1. `LLM_BASE_URL`
+2. `LLM_MODEL`
+3. “测试 LLM 连通性”
+4. “刷新”模型列表
 
-```bash
-cd ~/Desktop/openclaw/projects/poster-hub
+当前实现支持：
 
-# 提交代码
-git add .
-git commit -m "your changes"
-git push gitea main
-```
+- Ollama：`/api/tags`、`/v1/models`、`/models`
+- 通用 OpenAI 兼容接口：`/models`、`/v1/models`、`/model/list`
+- 诊断字段：`message`、`details`、`tried`、`suggestedBaseUrl`
 
-### 2. NAS 重新部署
+说明：
 
-```bash
-# SSH 到 NAS
-ssh -p 2222 yao@192.168.31.85
-
-# 拉取最新代码
-cd /home/yao/poster-hub
-git pull gitea main
-
-# 重新构建镜像
-docker build -t poster-hub .
-
-# 重启容器
-docker stop poster-hub-app && docker rm poster-hub-app
-docker run -d --name poster-hub-app -p 30008:3000 -v /home/yao/poster-hub/posters:/app/posters --restart unless-stopped poster-hub
-```
+- Docker 镜像已包含 `curl`，因此容器内连通性测试在 `fetch` 失败时仍可回退
+- 如果宿主机能访问 Ollama，但容器内不通，请优先排查容器网络策略
 
 ---
 
@@ -117,33 +107,34 @@ docker run -d --name poster-hub-app -p 30008:3000 -v /home/yao/poster-hub/poster
 ### 服务无法访问
 
 ```bash
-# 1. 检查容器状态
-docker ps | grep poster
-
-# 2. 查看日志
-docker logs poster-hub-app
-
-# 3. 检查端口监听
+docker compose ps
+docker compose logs posterhub
 ss -tlnp | grep 30008
-
-# 4. 重启服务
-docker restart poster-hub-app
 ```
+
+### 设置页提示无法连接 LLM
+
+```bash
+# 进入容器
+docker exec -it posterhub-app bash
+
+# 检查容器内是否能访问 Ollama
+curl http://YOUR_OLLAMA_IP:11434/api/tags
+```
+
+如果这里失败，说明问题在容器到 Ollama 的网络链路，不在前端页面。
 
 ### 海报无法显示
 
 ```bash
-# 检查 posters 目录权限
-ls -la /home/yao/poster-hub/posters/
-
-# 检查 parser 模块
-ls -la /home/yao/poster-hub/parser/
+ls -la ./posters
+docker compose logs -f
 ```
 
 ---
 
-## 📝 版本历史
+## 📝 备注
 
-| 日期 | 版本 | 说明 |
-|------|------|------|
-| 2026-04-11 | 1.0 | Docker 部署上线 |
+- 本项目没有 `/admin` 页面
+- Docker 默认内部服务端口是 `3008`，不是 `3000`
+- 推荐优先使用 `docker compose` 而不是手写 `docker run`，避免端口和挂载参数漂移

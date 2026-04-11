@@ -169,6 +169,29 @@ curl http://localhost:3008/api/list
 - `modelFound` 模型是否存在
 - `modelsPreview` 模型列表预览
 - `endpoint` 实际探测端点（如 `/api/tags` 或 `/models`）
+- `message` 面向用户的摘要提示
+- `details` 底层诊断信息（如 fetch/curl 错误）
+- `tried` 已探测过的端点列表
+- `suggestedBaseUrl` 自动发现的候选地址（如存在）
+- `autoDiscovered` 是否由自动探测得出
+
+示例：
+
+```json
+{
+  "ok": true,
+  "test": {
+    "ok": false,
+    "reachable": false,
+    "message": "无法连接到服务地址",
+    "details": "fetch/curl 均失败: curl: (7) Failed to connect ...",
+    "endpoint": "http://localhost:11434/api/tags",
+    "tried": ["http://localhost:11434/api/tags"],
+    "suggestedBaseUrl": "",
+    "autoDiscovered": false
+  }
+}
+```
 
 ---
 
@@ -179,6 +202,20 @@ curl http://localhost:3008/api/list
 - `baseUrl`
 - `apiKey`
 - `model`
+
+响应字段：
+
+- `ok`
+- `models`
+- `modelCount`
+- `endpoint`
+- `reachable`
+- `modelFound`
+- `message`
+- `details`
+- `tried`
+- `suggestedBaseUrl`
+- `autoDiscovered`
 
 ---
 
@@ -291,8 +328,31 @@ Save settings (`llmApiKey`, `llmBaseUrl`, `llmModel`, `githubToken`) to `.env`.
 ### POST /api/settings/test
 Test LLM connectivity without saving settings.
 
+Returns:
+- `reachable`
+- `modelFound`
+- `modelsPreview`
+- `endpoint`
+- `message`
+- `details`
+- `tried`
+- `suggestedBaseUrl`
+- `autoDiscovered`
+
 ### GET /api/models
 Get model list for settings UI selector (supports optional query overrides).
+
+Returns:
+- `models`
+- `modelCount`
+- `endpoint`
+- `reachable`
+- `modelFound`
+- `message`
+- `details`
+- `tried`
+- `suggestedBaseUrl`
+- `autoDiscovered`
 
 ### GET /api/progress/:progressId
 Get live generation progress stage for UI synchronization.

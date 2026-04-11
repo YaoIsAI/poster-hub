@@ -62,13 +62,15 @@ PosterHub follows a local-first, dual-side collaboration architecture:
 ## ✨ Features
 
 - 🤖 **AI-Driven** — Enter any project, AI analyzes content and generates poster
+- 📖 **GitHub README Deep Analysis** — Reads README / README_EN first, then uses LLM to extract title, highlights, and sections
 - 📁 **Local Project Analysis** — Scans local folders and uses LLM for richer content extraction
 - 🧩 **Dual Generation Routes** — `POST /api/generate` (project poster) + `POST /api/prompt` (style-based poster)
 - 🌐 **Bilingual** — UI and poster content support Chinese and English
 - 🪄 **Multiple Poster Types** — `wechat` / `xiaohongshu` / `performance` / `corporate` / `custom`
 - 📱 **HD Export** — Native 780px width, 2× clarity
-- ⚙️ **Settings Page** — Built-in LLM connectivity test, local model refresh, and model selection
+- ⚙️ **Settings Page** — Built-in LLM connectivity test, model refresh/selection, candidate Base URL hints, and summarized diagnostics
 - 🔁 **Closed-Loop Audit** — `/api/prompt` now runs planner -> generator -> auditor -> auto-repair -> re-audit before PNG export
+- 🧪 **Two-Layer Harness Validation** — content validator + HTML structure validator, with hard vs soft issue classification
 - 🌐 **Web Interface** — No installation needed, open in browser
 - 🔗 **GitHub Integration** — Paste GitHub URL, AI analyzes automatically
 - ⚡ **Local Run** — Clone and run, minimal dependencies
@@ -234,13 +236,18 @@ poster-hub/
 ├── README.md             # Chinese documentation
 ├── README_EN.md          # English documentation
 ├── server.js             # HTTP API server (port 3008)
+├── github-utils.js       # GitHub API + DESIGN.md fetching/parsing
+├── poster-validator.js   # Poster content validation and harness severity summary
 ├── generator.js          # Poster HTML/CSS generation engine
-├── prompt-generator.js   # Generic style-based poster generator
+├── prompt-generator.js   # Generic style-based poster generator + structure validation
 ├── design-system.js      # Design token and design spec parser
 ├── poster-generator.js   # Adaptive CSS poster generator
-├── screenshot.js         # Playwright full-page screenshot
-├── local-llm.js         # LLM project analyzer (any OpenAI-compatible API)
-├── generate-poster.js   # CLI command-line tool
+├── screenshot.js         # Chromium / Playwright full-page screenshot
+├── local-llm.js          # Local project analysis + GitHub README LLM analysis
+├── generate-poster.js    # CLI command-line tool
+├── Dockerfile            # Docker image build (includes curl / wget dependencies)
+├── docker-compose.yml    # Docker Compose deployment example
+├── DEPLOY.md             # Deployment notes
 ├── web/
 │   ├── index.html       # Generator web interface
 │   ├── gallery.html     # Poster gallery page
@@ -253,12 +260,16 @@ poster-hub/
 
 | File | Responsibility |
 |------|---------------|
-| `server.js` | HTTP API, routing, GitHub API calls |
+| `server.js` | HTTP API, routing, settings persistence, connectivity diagnostics, task progress |
+| `github-utils.js` | GitHub repo metadata, README, SKILL.md, DESIGN.md fetching and template matching |
+| `poster-validator.js` | Poster content validation, harness issue classification and summarization |
 | `generator.js` | Poster HTML/CSS generation, theme system, i18n |
-| `local-llm.js` | OpenAI-compatible LLM for project analysis |
+| `prompt-generator.js` | Generic poster generation, prompt type list, HTML structure validation |
+| `local-llm.js` | OpenAI-compatible LLM for local project analysis and GitHub README analysis |
 | `screenshot.js` | Playwright full-page PNG screenshot |
 | `web/index.html` | Generator UI (3 input modes) |
 | `web/gallery.html` | Historical poster gallery |
+| `web/settings.html` | LLM / GitHub settings and diagnostics UI |
 
 ---
 
@@ -330,6 +341,11 @@ GET /api/models
 GET /api/progress/:progressId
 ```
 
+Notes:
+- `POST /api/settings/test` returns `reachable`, `modelFound`, `modelsPreview`, `endpoint`, and summarized `message`
+- `GET /api/models` additionally returns `details`, `tried`, `suggestedBaseUrl`, and `autoDiscovered`
+- The settings UI shows short user-facing diagnostics while the API keeps detailed fields for debugging
+
 See details: [docs/API.md](docs/API.md)
 
 ---
@@ -373,7 +389,7 @@ Environment variables (optional):
 |----------|-------------|---------|
 | `GITHUB_TOKEN` | GitHub API token (higher rate limits) | none |
 | `LLM_API_KEY` | OpenAI-compatible API key for AI analysis | none |
-| `LLM_BASE_URL` | LLM API endpoint (MiniMax by default) | MiniMax default |
+| `LLM_BASE_URL` | LLM API endpoint (OpenAI-compatible / Ollama supported) | MiniMax default |
 | `LLM_MODEL` | LLM model name (default: MiniMax-M2.1) | MiniMax-M2.1 |
 | `PORT` | Server port | `3008` |
 | `POSTER_LOGO_PATH` | Custom logo file path | none |
@@ -387,6 +403,11 @@ cp .env.example .env
 
 You can also configure and test LLM connectivity via UI:
 `http://localhost:3008/web/settings.html`
+
+Docker notes:
+- `docker-compose.yml` maps `30008:3008` by default
+- The Docker image includes `curl`, so connectivity tests can fall back when `fetch` is unstable
+- For LAN Ollama usage, verify the container can also reach `LLM_BASE_URL`
 
 ---
 
@@ -403,6 +424,13 @@ You can also configure and test LLM connectivity via UI:
 
 **Q: Generated image is blank?**
 → Install bundled Chromium: `npx @sparticuz/chromium install`
+
+**Q: Settings page says LLM is unreachable or shows no model list?**
+→ Test connectivity in `web/settings.html` first. For Ollama:
+- use `http://host:11434/v1` as `LLM_BASE_URL`
+- verify `/api/tags` is reachable
+- if deployed with Docker, verify the container can also reach that LAN address
+- if endpoint is reachable but there are no models, pull/install models in Ollama first
 
 ---
 
