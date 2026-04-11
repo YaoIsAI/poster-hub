@@ -171,27 +171,33 @@ ${customCss ? '用户额外要求：\n' + customCss : '无'}
     const data = await response.json();
     let rawHtml = data.choices?.[0]?.message?.content || '';
     
-    // 提取 HTML - 智能处理 LLM thinking 内容
-    // MiniMax 的 thinking 内容没有标签包裹，直接以 <think> 开头
-    // 策略：找到第一个真正的 HTML 标签开始位置（<style>, <div, <html）
-    const stylePos = rawHtml.indexOf('<style>');
-    const divPos = rawHtml.indexOf('<div ');
-    const htmlPos = rawHtml.indexOf('<html');
-    const doctypePos = rawHtml.indexOf('<!DOCTYPE');
+    // 提取 HTML - 智能处理各种格式
+    // 1. 先去掉 markdown 代码块包裹（```html ... ```）
+    let cleaned = rawHtml;
+    const codeBlockMatch = rawHtml.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    if (codeBlockMatch) {
+      cleaned = codeBlockMatch[1]; // 取代码块内的内容
+    }
+    
+    // 2. 找到第一个真正的 HTML 标签开始位置
+    const stylePos = cleaned.indexOf('<style>');
+    const divPos = cleaned.indexOf('<div ');
+    const htmlPos = cleaned.indexOf('<html');
+    const doctypePos = cleaned.indexOf('<!DOCTYPE');
     
     // 找最小的有效起始位置
     const positions = [stylePos, divPos, htmlPos, doctypePos].filter(p => p >= 0);
-    const htmlStart = positions.length > 0 ? Math.min(...positions) : rawHtml.indexOf('<');
+    const htmlStart = positions.length > 0 ? Math.min(...positions) : cleaned.indexOf('<');
     if (htmlStart > 0) {
-      rawHtml = rawHtml.substring(htmlStart);
+      cleaned = cleaned.substring(htmlStart);
     }
     
-    const htmlEnd = rawHtml.lastIndexOf('>') + 1;
+    const htmlEnd = cleaned.lastIndexOf('>') + 1;
     if (htmlStart < 0 || htmlEnd <= htmlStart) {
-      throw new Error('LLM 返回无效 HTML');
+      throw new Error('LLM 返回无效 HTML: ' + cleaned.substring(0, 100));
     }
     
-    let html = rawHtml.substring(0, htmlEnd);
+    let html = cleaned.substring(0, htmlEnd);
     
     // 注入响应式 CSS（确保自适应规则生效）
     const responsiveCSS = `
