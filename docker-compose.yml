@@ -22,6 +22,8 @@ services:
     volumes:
       # 持久化海报数据
       - ./posters:/app/posters
+      # 挂载 .env 配置（LLM 设置等）
+      - ./.env:/app/.env
       # 可选：挂载项目目录用于本地项目分析
       # - /path/to/your/projects:/projects:ro
     healthcheck:
