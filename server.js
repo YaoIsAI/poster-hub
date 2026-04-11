@@ -709,6 +709,27 @@ function getJsonWithCurlFallback(endpoint, headers, timeoutMs) {
   }
 }
 
+function summarizeConnectivityError(message, endpoint) {
+  const msg = String(message || '');
+  if (!msg) return '连接失败';
+  if (msg.includes('Couldn\'t connect to server') || msg.includes('fetch failed')) {
+    return '无法连接到服务地址';
+  }
+  if (msg.includes('timed out') || msg.includes('timeout') || msg.includes('aborted')) {
+    return '连接超时';
+  }
+  if (msg.includes('模型接口可达，但未返回模型列表')) {
+    return '接口可达，但未发现可用模型';
+  }
+  if (msg.startsWith('HTTP ')) {
+    return '接口返回异常：' + msg;
+  }
+  if (endpoint && endpoint.includes(':11434')) {
+    return 'Ollama 接口访问失败';
+  }
+  return '连接失败';
+}
+
 async function testLlmConnectivity({ apiKey = '', baseUrl = '', model = '' }) {
   const LLM_BASE_URL = process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || '';
   const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || '';
@@ -724,6 +745,9 @@ async function testLlmConnectivity({ apiKey = '', baseUrl = '', model = '' }) {
   const timeoutMs = 4000;
   const headers = { 'Content-Type': 'application/json' };
   if (finalApiKey) headers['Authorization'] = `Bearer ${finalApiKey}`;
+  const isModelsEndpointExpected = (endpoint) => {
+    return endpoint.includes('/api/tags') || endpoint.includes('/models') || endpoint.includes('/model/list');
+  };
 
   const attempt = async (base) => {
     const endpoints = getModelsEndpoints(base);
@@ -741,6 +765,19 @@ async function testLlmConnectivity({ apiKey = '', baseUrl = '', model = '' }) {
         }
         const data = JSON.parse(raw);
         const modelIds = extractModelIds(data);
+        const hasValidPayload = isModelsEndpointExpected(endpoint);
+        if (hasValidPayload && modelIds.length === 0) {
+          return {
+            ok: false,
+            reachable: true,
+            message: '模型接口可达，但未返回模型列表',
+            modelCount: 0,
+            modelsPreview: [],
+            modelFound: null,
+            endpoint,
+            tried
+          };
+        }
         return {
           ok: true,
           reachable: true,
@@ -754,6 +791,18 @@ async function testLlmConnectivity({ apiKey = '', baseUrl = '', model = '' }) {
         const curl = getJsonWithCurlFallback(endpoint, headers, timeoutMs);
         if (curl.ok) {
           const modelIds = extractModelIds(curl.data);
+          if (isModelsEndpointExpected(endpoint) && modelIds.length === 0) {
+            return {
+              ok: false,
+              reachable: true,
+              message: '模型接口可达，但未返回模型列表',
+              modelCount: 0,
+              modelsPreview: [],
+              modelFound: null,
+              endpoint,
+              tried
+            };
+          }
           return {
             ok: true,
             reachable: true,
@@ -764,20 +813,31 @@ async function testLlmConnectivity({ apiKey = '', baseUrl = '', model = '' }) {
             tried
           };
         }
-        return { ok: false, reachable: false, message: `fetch/curl 均失败: ${curl.error || e.message}`, modelCount: 0, modelsPreview: [], modelFound: null, endpoint, tried };
+        const rawMessage = `fetch/curl 均失败: ${curl.error || e.message}`;
+        return {
+          ok: false,
+          reachable: false,
+          message: summarizeConnectivityError(rawMessage, endpoint),
+          details: rawMessage,
+          modelCount: 0,
+          modelsPreview: [],
+          modelFound: null,
+          endpoint,
+          tried
+        };
       }
     }
     return { ok: false, reachable: false, message: 'No endpoint', modelCount: 0, modelsPreview: [], modelFound: null, endpoint: '', tried };
   };
 
   const first = await attempt(finalBaseUrl);
-  if (first.ok) return first;
+  if (first.ok || first.reachable) return first;
 
   const candidates = getCandidateBaseUrls(finalBaseUrl);
   for (const cand of candidates) {
     if (cand === normalizeBaseUrl(finalBaseUrl)) continue;
     const r = await attempt(cand);
-    if (r.ok) {
+    if (r.ok && r.modelCount > 0) {
       return { ...r, suggestedBaseUrl: cand, autoDiscovered: true };
     }
   }
@@ -1104,6 +1164,54 @@ function validatePosterHTML(html, sourceData) {
   return { valid: issues.length === 0, issues };
 }
 
+function classifyHarnessIssue(issue) {
+  if (typeof issue === 'string') {
+    if (
+      issue.includes('HTML 为空') ||
+      issue.includes('标签未闭合') ||
+      issue.includes('缺少样式定义') ||
+      issue.includes('缺少关键元素') ||
+      issue.includes('HTML 内容过短') ||
+      issue.includes('乱码')
+    ) {
+      return { severity: 'hard', message: issue };
+    }
+    return { severity: 'soft', message: issue };
+  }
+
+  if (!issue || typeof issue !== 'object') {
+    return { severity: 'soft', message: String(issue) };
+  }
+
+  if (issue.type === 'missing') {
+    return { severity: 'hard', message: '缺少关键字段: ' + issue.field };
+  }
+  if (issue.type === 'title') {
+    return { severity: 'soft', message: '标题与源数据不完全一致' };
+  }
+  if (issue.type === 'topics') {
+    return { severity: 'soft', message: '主题词覆盖不足' };
+  }
+  if (issue.type === 'stars') {
+    return { severity: 'soft', message: '统计信息未充分体现' };
+  }
+
+  return { severity: 'soft', message: JSON.stringify(issue) };
+}
+
+function summarizeHarnessIssues(issues) {
+  const normalized = (issues || []).map(classifyHarnessIssue);
+  const hardIssues = normalized.filter(i => i.severity === 'hard');
+  const softIssues = normalized.filter(i => i.severity === 'soft');
+  const messages = Array.from(new Set(normalized.map(i => i.message).filter(Boolean)));
+  return {
+    hardIssues,
+    softIssues,
+    messages,
+    blocking: hardIssues.length > 0
+  };
+}
+
 // 用 AI 生成海报
         // 🎯 新架构：优先使用自适应 CSS 生成器
         let html;
@@ -1208,6 +1316,7 @@ function validatePosterHTML(html, sourceData) {
         let harnessPassed = false;
         let harnessRound = 0;
         const maxRounds = 3;
+        let lastHarnessSummary = { hardIssues: [], softIssues: [], messages: [], blocking: false };
 
         while (!harnessPassed && harnessRound < maxRounds) {
           harnessRound++;
@@ -1221,14 +1330,18 @@ function validatePosterHTML(html, sourceData) {
             ...(htmlValidation.issues || []),
             ...(structureValidation.issues || [])
           ];
+          lastHarnessSummary = summarizeHarnessIssues(allIssues);
           
-          if (allIssues.length === 0) {
+          if (!lastHarnessSummary.blocking) {
             harnessPassed = true;
-            console.log('✅ Harness 第' + harnessRound + '轮通过');
+            const suffix = lastHarnessSummary.softIssues.length > 0
+              ? '（软警告 ' + lastHarnessSummary.softIssues.length + ' 项）'
+              : '';
+            console.log('✅ Harness 第' + harnessRound + '轮通过' + suffix);
             break;
           }
 
-          console.warn('⚠️ Harness 第' + harnessRound + '轮验证失败: ' + JSON.stringify(allIssues).slice(0, 100));
+          console.warn('⚠️ Harness 第' + harnessRound + '轮验证失败: ' + JSON.stringify(lastHarnessSummary.messages).slice(0, 160));
           
           // 如果还有轮次，尝试修复
           if (harnessRound < maxRounds) {
@@ -1262,9 +1375,11 @@ function validatePosterHTML(html, sourceData) {
           }
         }
 
-        if (!harnessPassed) {
+        if (!harnessPassed && lastHarnessSummary.blocking) {
           console.warn('⚠️ Harness 验证未通过，保留生成结果');
-          warnings.push('⚠️ 内容验证未完全通过');
+          warnings.push('⚠️ 内容验证未完全通过：' + lastHarnessSummary.messages.slice(0, 3).join('；'));
+        } else if (lastHarnessSummary.softIssues.length > 0) {
+          warnings.push('ℹ️ 内容已生成，存在轻微偏差：' + lastHarnessSummary.messages.slice(0, 2).join('；'));
         }
 
         const id = Date.now() + '-' + Math.random().toString(36).slice(2, 6);
@@ -1465,8 +1580,13 @@ function validatePosterHTML(html, sourceData) {
         models: result.modelsPreview || [],
         modelCount: result.modelCount || 0,
         endpoint: result.endpoint,
+        reachable: !!result.reachable,
         modelFound: result.modelFound,
-        message: result.message || ''
+        message: result.message || '',
+        details: result.details || '',
+        tried: result.tried || [],
+        suggestedBaseUrl: result.suggestedBaseUrl || '',
+        autoDiscovered: !!result.autoDiscovered
       });
     } catch (e) {
       json(res, 500, { ok: false, error: e.message });

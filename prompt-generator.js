@@ -237,14 +237,18 @@ function validatePosterStructure(html) {
     return { valid: false, issues: ['HTML 为空或无效'] };
   }
 
-  // 1. 乱码检测：检测连续无意义字符
-  const garbledPattern = /[\u4e00-\u9fa5]{10,}/g;
+  // 1. 乱码检测：基于可见文本而不是整段 HTML/CSS，减少误报
+  const visibleText = html
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const chineseChars = (html.match(/[\u4e00-\u9fa5]/g) || []).length;
   const alphaChars = (html.match(/[a-zA-Z]/g) || []).length;
   const digitChars = (html.match(/[0-9]/g) || []).length;
-  const totalChars = chineseChars + alphaChars + digitChars;
-  // 如果内容中有意义字符占比低于 60%，可能是乱码
-  if (totalChars > 100 && totalChars / html.length < 0.4) {
+  const visibleMeaningfulChars = (visibleText.match(/[\u4e00-\u9fa5a-zA-Z0-9]/g) || []).length;
+  if (visibleText.length > 80 && visibleMeaningfulChars / visibleText.length < 0.45) {
     issues.push('检测到乱码或无意义内容');
   }
 
@@ -278,7 +282,7 @@ function validatePosterStructure(html) {
 
   // 5. 关键元素存在检查
   const essentialElements = [
-    ['.poster', '海报容器'],
+    ['class="poster', '海报容器'],
     ['class="hero', '英雄区'],
   ];
   for (const [selector, name] of essentialElements) {

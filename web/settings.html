@@ -247,6 +247,40 @@ function setTestResult(type, text) {
   el.textContent = text || '';
 }
 
+function buildConnectivityHint(result, fallbackBaseUrl) {
+  const endpoint = result && result.endpoint ? result.endpoint : (fallbackBaseUrl || '');
+  const message = result && result.message ? result.message : '';
+  const suggested = result && result.suggestedBaseUrl ? result.suggestedBaseUrl : '';
+
+  if (result && result.ok && result.reachable) {
+    const count = typeof result.modelCount === 'number' ? result.modelCount : 0;
+    return (currentLang === 'zh' ? '连接成功' : 'Connected') + (count > 0 ? ((currentLang === 'zh' ? '，发现 ' : ', found ') + count + (currentLang === 'zh' ? ' 个模型' : ' models')) : '');
+  }
+
+  if (message === '接口可达，但未发现可用模型') {
+    return currentLang === 'zh'
+      ? '已连接到接口，但没有可用模型，请先在该服务中安装或拉取模型'
+      : 'Endpoint is reachable but no models are available';
+  }
+
+  if (message === '无法连接到服务地址' || message === 'Ollama 接口访问失败') {
+    let text = currentLang === 'zh'
+      ? '无法连接到该 Ollama 地址，请确认服务已启动且当前机器可访问'
+      : 'Cannot reach the Ollama endpoint';
+    if (endpoint) text += '：' + endpoint;
+    if (suggested) text += (currentLang === 'zh' ? '；可尝试：' : '; try: ') + suggested;
+    return text;
+  }
+
+  if (message === '连接超时') {
+    return currentLang === 'zh'
+      ? '连接超时，请检查网络或服务响应速度'
+      : 'Connection timed out';
+  }
+
+  return message || (currentLang === 'zh' ? '未获取到模型列表（请确认 Base URL 可访问）' : 'No models (check Base URL)');
+}
+
 async function loadSettings() {
   try {
     const res = await fetch('/api/settings');
@@ -279,6 +313,7 @@ async function loadModels() {
   const select = document.getElementById('llmModelSelect');
   const statusEl = document.getElementById('modelStatus');
   const refreshBtn = document.getElementById('refreshModelsBtn');
+  const baseUrlInput = document.getElementById('llmBaseUrl');
   const currentModel = (select.value || currentSettings?.llmModel || '').trim();
   const llmBaseUrl = document.getElementById('llmBaseUrl').value.trim();
   const llmApiKey = document.getElementById('llmApiKey').value.trim();
@@ -303,8 +338,11 @@ async function loadModels() {
     const models = Array.from(new Set((data.models || []).filter(Boolean)));
     if (!data.ok || models.length === 0) {
       select.innerHTML = '<option value="">-- 无模型 --</option>';
+      if (data.suggestedBaseUrl) {
+        baseUrlInput.value = data.suggestedBaseUrl;
+      }
       if (statusEl) {
-        const hint = data.message || (currentLang === 'zh' ? '未获取到模型列表（请确认 Base URL 可访问）' : 'No models (check Base URL)');
+        const hint = buildConnectivityHint(data, baseUrl);
         statusEl.className = 'status-row msg err';
         statusEl.textContent = hint;
       }
@@ -322,7 +360,11 @@ async function loadModels() {
     }
     
     console.log('[loadModels] select options:', select.options.length, 'selected:', select.value);
-    if (statusEl) { statusEl.className = 'status-row msg ok'; statusEl.textContent = (currentLang === 'zh' ? '已加载 ' : 'Loaded ') + models.length + ' 个模型'; }
+    if (statusEl) {
+      const suggested = data.suggestedBaseUrl ? (' | suggested: ' + data.suggestedBaseUrl) : '';
+      statusEl.className = 'status-row msg ok';
+      statusEl.textContent = (currentLang === 'zh' ? '已加载 ' : 'Loaded ') + models.length + ' 个模型' + suggested;
+    }
   } catch (e) {
     select.innerHTML = '<option value="">-- 加载失败 --</option>';
     if (statusEl) {
@@ -433,11 +475,12 @@ async function testLlmConnectivity() {
     const count = typeof r.modelCount === 'number' ? (' | count: ' + r.modelCount) : '';
     const suggested = r.suggestedBaseUrl ? (' | suggested: ' + r.suggestedBaseUrl) : '';
     const modelHint = (llmModel && r.modelFound === false) ? (currentLang === 'zh' ? '（模型名可能不匹配）' : ' (model not found)') : '';
-    const primary = r.message
+    const primary = buildConnectivityHint(r, llmBaseUrl || (currentSettings?.llmBaseUrl || ''))
       || ((!llmBaseUrl && !(currentSettings?.llmBaseUrl || '')) ? (currentLang === 'zh' ? '未设置 LLM Base URL' : 'LLM Base URL is empty') : '')
       || (r.ok && r.reachable ? (currentLang === 'zh' ? '连接成功' : 'Connected') : (r.reachable ? (currentLang === 'zh' ? '请求失败' : 'Request failed') : (currentLang === 'zh' ? '无法连接' : 'Unreachable')));
     const level = r.ok && r.reachable ? 'ok' : 'err';
-    setTestResult(level, primary + modelHint + count + endpoint + preview + suggested);
+    const extra = r.ok && r.reachable ? (modelHint + count + endpoint + preview + suggested) : '';
+    setTestResult(level, primary + extra);
     if (r.suggestedBaseUrl) {
       document.getElementById('llmBaseUrl').value = r.suggestedBaseUrl;
       if (r.autoDiscovered) {

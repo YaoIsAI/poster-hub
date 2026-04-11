@@ -5,6 +5,7 @@ FROM node:22-bookworm
 
 # 安装系统依赖（Playwright 需要）
 RUN apt-get update && apt-get install -y \
+    curl \
     wget \
     gnupg \
     ca-certificates \
