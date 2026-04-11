@@ -863,10 +863,10 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { nl, lang = 'zh', inputType = 'url', _progressId } = JSON.parse(body);
-        
-        // 更新进度辅助函数
-        let updateProgress;
+        const { nl = '', lang = 'zh', inputType = 'url', _progressId } = JSON.parse(body);
+
+        // 更新进度辅助函数（声明在 try 外层，确保 catch 块也能访问）
+        let updateProgress = () => {};
         const setUpdateProgress = (stage, model) => {
           if (_progressId) {
             progressMap.set(_progressId, { stage, model: model || 'LLM', timestamp: Date.now() });
@@ -1170,18 +1170,34 @@ function validatePosterHTML(html, sourceData) {
             updateProgress('html', process.env.LLM_MODEL || 'gemma4:e4b');
             html = generateAdaptiveCSS({ hero, sections, stats, footer, theme, lang });
           } else {
-            // 其他输入：使用旧的 NL 解析方式（fallback）
-            updateProgress('html', process.env.LLM_MODEL || 'gemma4:e4b');
-            const result = generateFromNaturalLanguage(finalNl, genOverrides);
-            html = result.html;
-            theme = result.theme;
+            // 其他输入（纯自然语言）：优先使用 LLM 生成海报内容
+            const hasLlm = !!(process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL);
+            if (hasLlm) {
+              // 有 LLM：调用 LLM 生成海报（支持 Ollama/MiniMax 等）
+              updateProgress('html', process.env.LLM_MODEL || 'gemma4:e4b');
+              console.log('🤖 [LLM] 正在生成海报: ' + finalNl.slice(0, 50));
+              const { html: llmHtml, style } = await generateFromPrompt({ prompt: finalNl, type: 'custom', lang });
+              html = llmHtml;
+              theme = THEMES[style] || THEMES['apple-minimal'];
+            } else {
+              // 无 LLM：使用旧的 NL 解析方式（fallback）
+              updateProgress('html', process.env.LLM_MODEL || 'gemma4:e4b');
+              const result = generateFromNaturalLanguage(finalNl, genOverrides);
+              html = result.html;
+              theme = result.theme;
+            }
           }
           console.log('✅ 自适应CSS海报生成成功');
         } catch (e) {
           console.warn('⚠️ 自适应CSS生成失败，使用旧方式:', e.message);
-          const result = posterConfig
-            ? generateFromConfig(posterConfig)
-            : generateFromNaturalLanguage(finalNl, genOverrides);
+          const hasLlm = !!(process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL);
+          let result;
+          if (posterConfig) {
+            result = generateFromConfig(posterConfig);
+          } else if (hasLlm) {
+            try { result = await generateFromPrompt({ prompt: finalNl, type: 'custom', lang }); } catch {}
+          }
+          if (!result) result = generateFromNaturalLanguage(finalNl, genOverrides);
           html = result.html;
           theme = result.theme;
         }
@@ -1227,10 +1243,17 @@ function validatePosterHTML(html, sourceData) {
                 }
                 html = generateAdaptiveCSS({ hero, sections, stats, footer, theme, lang });
               } else {
-                // 无 LLM 配置：用旧的 fallback
-                const retryResult = generateFromNaturalLanguage(finalNl, genOverrides);
-                html = retryResult.html;
-                theme = retryResult.theme;
+                // 无 posterConfig：用 LLM 或 fallback
+                const hasLlm = !!(process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL);
+                if (hasLlm) {
+                  const { html: retryHtml, style } = await generateFromPrompt({ prompt: finalNl, type: 'custom', lang });
+                  html = retryHtml;
+                  theme = THEMES[style] || THEMES['apple-minimal'];
+                } else {
+                  const retryResult = generateFromNaturalLanguage(finalNl, genOverrides);
+                  html = retryResult.html;
+                  theme = retryResult.theme;
+                }
               }
             } catch(repairErr) {
               console.warn('⚠️ 修复失败:', repairErr.message);
